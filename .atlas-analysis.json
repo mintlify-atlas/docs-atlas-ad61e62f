@@ -1,0 +1,186 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "dlt",
+  "projectDescription": "Open-source Python library that automates data loading from various sources to destinations",
+  "theme": "sequoia",
+  "primaryColor": "#6F6FF7",
+  "lightColor": "#8B8BFF",
+  "darkColor": "#5555D9",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation",
+              "core-concepts"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/pipeline",
+              "concepts/source",
+              "concepts/resource",
+              "concepts/destination",
+              "concepts/schema",
+              "concepts/state"
+            ]
+          },
+          {
+            "group": "Building Pipelines",
+            "pages": [
+              "guides/load-from-rest-api",
+              "guides/load-from-sql-database",
+              "guides/load-from-filesystem",
+              "guides/load-from-python-data",
+              "guides/incremental-loading",
+              "guides/schema-evolution",
+              "guides/data-contracts"
+            ]
+          },
+          {
+            "group": "Sources",
+            "pages": [
+              "sources/overview",
+              "sources/rest-api",
+              "sources/sql-database",
+              "sources/filesystem",
+              "sources/custom-sources",
+              "sources/available-sources"
+            ]
+          },
+          {
+            "group": "Destinations",
+            "pages": [
+              "destinations/overview",
+              "destinations/bigquery",
+              "destinations/snowflake",
+              "destinations/redshift",
+              "destinations/postgres",
+              "destinations/duckdb",
+              "destinations/databricks",
+              "destinations/filesystem",
+              "destinations/all-destinations",
+              "destinations/custom-destinations"
+            ]
+          },
+          {
+            "group": "Advanced Usage",
+            "pages": [
+              "advanced/transformations",
+              "advanced/performance",
+              "advanced/deployment",
+              "advanced/testing",
+              "advanced/configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/pipeline",
+              "api/run",
+              "api/attach"
+            ]
+          },
+          {
+            "group": "Decorators",
+            "pages": [
+              "api/decorators/source",
+              "api/decorators/resource",
+              "api/decorators/transformer",
+              "api/decorators/destination"
+            ]
+          },
+          {
+            "group": "Classes",
+            "pages": [
+              "api/classes/pipeline",
+              "api/classes/source",
+              "api/classes/resource",
+              "api/classes/schema",
+              "api/classes/dataset"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "api/config",
+              "api/secrets"
+            ]
+          },
+          {
+            "group": "Sources Module",
+            "pages": [
+              "api/sources/incremental",
+              "api/sources/helpers"
+            ]
+          },
+          {
+            "group": "Destinations Module",
+            "pages": [
+              "api/destinations/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/init",
+              "cli/pipeline",
+              "cli/deploy"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automated data loading from 5000+ sources",
+    "Schema inference and evolution",
+    "Incremental loading with state management",
+    "20+ built-in destinations (warehouses, lakes, databases)",
+    "Data normalization and type handling",
+    "Python-native with decorator-based API",
+    "CLI for scaffolding and pipeline management",
+    "Built-in transformations with dbt support",
+    "Deployment to Airflow, cloud functions, and more",
+    "Data contracts and schema validation"
+  ],
+  "publicApiSurface": [
+    "dlt.pipeline()",
+    "dlt.run()",
+    "dlt.attach()",
+    "@dlt.source",
+    "@dlt.resource",
+    "@dlt.transformer",
+    "@dlt.destination",
+    "dlt.sources.incremental",
+    "dlt.config",
+    "dlt.secrets",
+    "dlt.Schema",
+    "dlt.Pipeline",
+    "dlt.destinations.*",
+    "dlt.sources.rest_api",
+    "dlt.sources.sql_database",
+    "dlt.sources.filesystem",
+    "dlt dataset",
+    "CLI: dlt init",
+    "CLI: dlt pipeline",
+    "CLI: dlt deploy"
+  ]
+}

@@ -1,0 +1,526 @@
+---
+title: dlt pipeline
+description: Inspect and manage local pipeline working directories
+---
+
+The `dlt pipeline` command provides operations to inspect pipeline working directories, tables, data in the destination, and troubleshoot loading problems.
+
+## Synopsis
+
+```bash
+dlt pipeline [PIPELINE_NAME] [OPERATION] [OPTIONS]
+dlt pipeline --list-pipelines
+```
+
+## Description
+
+Every pipeline run creates a working directory in `~/.dlt/pipelines/[PIPELINE_NAME]` that contains:
+
+- Pipeline state (metadata, resource states, source states)
+- Schemas with table and column definitions
+- Load packages (extracted, normalized, and completed)
+- Trace information from the last run
+
+The `dlt pipeline` command lets you inspect all of this without writing code.
+
+## Global Options
+
+### PIPELINE_NAME
+
+The name of the pipeline to inspect. Required for all operations except `--list-pipelines`.
+
+```bash
+dlt pipeline github_pipeline info
+```
+
+### --pipelines-dir
+
+Path to the pipelines working directory. Defaults to `~/.dlt/pipelines`.
+
+```bash
+dlt pipeline github_pipeline info --pipelines-dir /custom/path
+```
+
+### --verbose, -v
+
+Increases output verbosity. Can be used multiple times for more detail.
+
+```bash
+# Standard output
+dlt pipeline github_pipeline info
+
+# Verbose output
+dlt pipeline github_pipeline info -v
+
+# Very verbose output
+dlt pipeline github_pipeline info -vv
+```
+
+## Operations
+
+### list (default)
+
+Lists all pipelines in the working directory, sorted by last run time.
+
+```bash
+dlt pipeline --list-pipelines
+# or
+dlt pipeline -l
+```
+
+Example output:
+
+```
+3 pipelines found in /home/user/.dlt/pipelines
+github_pipeline (last run: 2 hours ago)
+stripe_pipeline (last run: 1 day ago)
+analytics_pipeline (last run: 3 days ago)
+```
+
+With verbosity 0, shows only the count:
+
+```bash
+dlt pipeline --list-pipelines -v 0
+```
+
+Output:
+
+```
+3 pipelines found in /home/user/.dlt/pipelines. Use -v to see the full list.
+```
+
+### info
+
+Displays comprehensive information about the pipeline state, schemas, and working directory contents.
+
+```bash
+dlt pipeline github_pipeline info
+```
+
+Example output:
+
+```
+Attaching to pipeline github_pipeline
+Found pipeline github_pipeline in /home/user/.dlt/pipelines
+
+Synchronized state:
+version: 1
+engine_version: 1
+pipeline_name: github_pipeline
+destination_type: bigquery
+destination_name: bigquery
+dataset_name: github_data
+
+sources:
+Add -v option to see sources state. Note that it could be large.
+
+Local state:
+last_run_context['uri']: /home/user/projects/github
+first_run: False
+
+Resources in schema: github
+issues with 1 table(s) and 3 resource state slot(s)
+  issues table 15 column(s) received data
+pull_requests with 2 table(s) and 1 resource state slot(s)
+  pull_requests table 20 column(s) received data
+  pull_requests__labels table 3 column(s) received data
+
+Working dir content:
+Has 1 completed load packages with following load ids:
+1234567890.123456
+
+Pipeline has last run trace. Use 'dlt pipeline github_pipeline trace' to inspect
+```
+
+With `-v` flag, also shows:
+- Full source state JSON
+- Detailed column information for each table
+- Whether tables have received data
+- Incomplete columns count
+
+### show
+
+Launches the interactive workspace dashboard for exploring pipeline data, schemas, and state.
+
+```bash
+dlt pipeline github_pipeline show
+```
+
+By default, launches the Marimo-based workspace dashboard. Requires `marimo` to be installed:
+
+```bash
+pip install marimo
+```
+
+#### Options
+
+**--streamlit**
+
+Launch the legacy Streamlit dashboard instead:
+
+```bash
+dlt pipeline github_pipeline show --streamlit
+```
+
+Requires `streamlit` to be installed.
+
+**--edit**
+
+Creates an editable version of the workspace dashboard in the current directory and launches it in edit mode:
+
+```bash
+dlt pipeline github_pipeline show --edit
+```
+
+This creates a local copy you can customize. Not applicable when using `--streamlit`.
+
+### trace
+
+Displays the execution trace from the last pipeline run, including timing information and any errors.
+
+```bash
+dlt pipeline github_pipeline trace
+```
+
+Example output:
+
+```
+Run started at 2024-03-15 14:23:45.123456
+Elapsed time: 45.2s
+
+Extract step
+  Started: 2024-03-15 14:23:45.234567
+  Elapsed: 12.3s
+  Status: SUCCESS
+
+Normalize step
+  Started: 2024-03-15 14:23:57.534567
+  Elapsed: 8.1s
+  Status: SUCCESS
+
+Load step
+  Started: 2024-03-15 14:24:05.634567
+  Elapsed: 24.8s
+  Status: SUCCESS
+  Loaded packages: 1
+  Jobs: 5 completed
+```
+
+With `-v` or `-vv` flags, shows more detailed timing and load information.
+
+### failed-jobs
+
+Displays information about all failed load jobs in completed packages.
+
+```bash
+dlt pipeline github_pipeline failed-jobs
+```
+
+Example output:
+
+```
+Checking failed jobs in load id '1234567890.123456'
+JOB: abc123def456 (issues)
+JOB file type: jsonl
+JOB file path: /home/user/.dlt/pipelines/github_pipeline/load/1234567890.123456/jobs/abc123def456.jsonl
+Column 'created_at' has wrong type. Expected TIMESTAMP, got STRING
+
+No failed jobs found
+```
+
+With `-v` flag, shows the full job details and error stack traces.
+
+### schema
+
+Displays the default schema for the pipeline.
+
+```bash
+dlt pipeline github_pipeline schema
+```
+
+#### Options
+
+**--format**
+
+Output format for the schema. Choices: `json`, `yaml`, `dbml`, `dot`, `mermaid`. Default: `yaml`.
+
+```bash
+# YAML format (default)
+dlt pipeline github_pipeline schema
+
+# JSON format
+dlt pipeline github_pipeline schema --format json
+
+# DBML (Database Markup Language)
+dlt pipeline github_pipeline schema --format dbml
+
+# DOT (GraphViz)
+dlt pipeline github_pipeline schema --format dot
+
+# Mermaid diagram
+dlt pipeline github_pipeline schema --format mermaid
+```
+
+**--remove-defaults**
+
+Exclude default hint values from the output. Default: `true`.
+
+```bash
+dlt pipeline github_pipeline schema --remove-defaults
+```
+
+### load-package
+
+Displays detailed information about a specific load package.
+
+```bash
+dlt pipeline github_pipeline load-package [LOAD_ID]
+```
+
+If `LOAD_ID` is omitted, shows the most recent package.
+
+Example output:
+
+```
+Package 1234567890.123456 found in /home/user/.dlt/pipelines/github_pipeline/load/1234567890.123456
+Package state: COMPLETED
+Jobs:
+  - issues.jsonl (123.4 KB, jsonl) - COMPLETED
+  - pull_requests.jsonl (456.7 KB, jsonl) - COMPLETED
+  - pull_requests__labels.jsonl (12.3 KB, jsonl) - COMPLETED
+```
+
+With `-v` flag, also displays the schema update that was applied during this load.
+
+### sync
+
+Drops the local pipeline state and restores it from the destination. Useful for:
+
+- Recovering from corrupted local state
+- Syncing state across different machines
+- Resetting after manual destination changes
+
+```bash
+dlt pipeline github_pipeline sync
+```
+
+The command will prompt for confirmation:
+
+```
+About to drop the local state of the pipeline and reset all the schemas.
+The destination state, data and schemas are left intact. Proceed? [y/N]:
+```
+
+#### Options
+
+**--destination**
+
+Specify the destination name when local pipeline state is missing:
+
+```bash
+dlt pipeline github_pipeline sync --destination bigquery --dataset-name github_data
+```
+
+**--dataset-name**
+
+Specify the dataset name when local pipeline state is missing.
+
+### drop
+
+Selectively drop tables and reset resource state. Use this to force a full refresh of specific resources.
+
+```bash
+dlt pipeline github_pipeline drop [RESOURCES...] [OPTIONS]
+```
+
+#### Arguments
+
+**RESOURCES**
+
+One or more resources to drop. Can be:
+
+- Exact resource names: `issues pull_requests`
+- Regex patterns (prefix with `re:`): `"re:^repo"`
+
+```bash
+# Drop specific resources
+dlt pipeline github_pipeline drop issues pull_requests
+
+# Drop all resources starting with 'repo'
+dlt pipeline github_pipeline drop "re:^repo"
+```
+
+#### Options
+
+**--drop-all**
+
+Drop all resources in the schema. Supersedes the `RESOURCES` argument.
+
+```bash
+dlt pipeline github_pipeline drop --drop-all
+```
+
+**--state-paths**
+
+Additional JsonPath expressions to reset in source state.
+
+```bash
+dlt pipeline github_pipeline drop --state-paths archives last_updated
+```
+
+**--schema**
+
+Specify a non-default schema to drop from.
+
+```bash
+dlt pipeline github_pipeline drop issues --schema github_archive
+```
+
+**--state-only**
+
+Reset resource state without dropping tables.
+
+```bash
+dlt pipeline github_pipeline drop issues --state-only
+```
+
+**--destination** and **--dataset-name**
+
+Required when pipeline state is corrupted or missing.
+
+#### Example
+
+```bash
+dlt pipeline github_pipeline drop repo_events
+```
+
+Output:
+
+```
+About to drop the following data in dataset github_data in destination bigquery:
+Selected schema: github_repo_events
+Selected resource(s): ['repo_events']
+Table(s) to drop: ['issues_event', 'fork_event', 'pull_request_event', 'push_event']
+  with data in destination: ['issues_event', 'fork_event', 'push_event']
+Resource(s) state to reset: ['repo_events']
+Source state path(s) to reset: []
+Do you want to apply these changes? [y/N]:
+```
+
+After confirming:
+1. All indicated tables are dropped in the destination
+2. Tables are removed from the schema
+3. Resource state is reset
+4. Updated schema and state are stored in the destination
+
+### drop-pending-packages
+
+Deletes all extracted and normalized packages, including partially loaded ones.
+
+```bash
+dlt pipeline github_pipeline drop-pending-packages
+```
+
+Example output:
+
+```
+Has 2 extracted packages ready to be normalized with following load ids:
+1234567890.123456
+1234567890.234567
+
+Has 1 normalized packages ready to be loaded with following load ids:
+1234567890.345678
+This package is partially loaded. Data in the destination may be modified.
+
+Delete the above packages? [y/N]:
+```
+
+Note: Pipeline state is **not** reverted. Use `dlt pipeline ... sync` to restore from destination.
+
+### mcp
+
+Launches an MCP (Model Context Protocol) server for the pipeline, enabling programmatic access to pipeline data and schemas.
+
+```bash
+dlt pipeline github_pipeline mcp [OPTIONS]
+```
+
+#### Options
+
+**--port**
+
+Port number for the MCP server. Default: `43656`.
+
+```bash
+dlt pipeline github_pipeline mcp --port 8080
+```
+
+**--stdio**
+
+Use stdio transport instead of HTTP.
+
+```bash
+dlt pipeline github_pipeline mcp --stdio
+```
+
+**--sse**
+
+Use Server-Sent Events transport.
+
+```bash
+dlt pipeline github_pipeline mcp --sse
+```
+
+## Working Directory Location
+
+Default pipeline working directory:
+
+```
+~/.dlt/pipelines/[PIPELINE_NAME]/
+```
+
+Structure:
+
+```
+~/.dlt/pipelines/github_pipeline/
+├── state.json                    # Pipeline state
+├── schemas/
+│   └── github.schema.yaml       # Schema definitions
+├── load/
+│   ├── extracted/               # Extracted packages
+│   ├── normalized/              # Normalized packages
+│   └── completed/               # Completed packages
+└── trace/
+    └── last_run.json            # Last run trace
+```
+
+## Troubleshooting
+
+### Cannot Restore Pipeline
+
+If the working directory is corrupted:
+
+```
+Cannot restore pipeline github_pipeline from /home/user/.dlt/pipelines/github_pipeline
+```
+
+Use `sync` to restore from destination:
+
+```bash
+dlt pipeline github_pipeline sync --destination bigquery --dataset-name github_data
+```
+
+### Credentials Not Found
+
+The `drop` and `sync` commands require destination credentials. Run from the same directory as your pipeline script, or set credentials as environment variables:
+
+```bash
+export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="your-project"
+dlt pipeline github_pipeline sync
+```
+
+## See Also
+
+- [dlt init](/cli/init) - Initialize new pipelines
+- [dlt deploy](/cli/deploy) - Deploy pipelines to production
+- [Pipeline Working Directory](https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline)

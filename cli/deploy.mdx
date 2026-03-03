@@ -1,0 +1,528 @@
+---
+title: dlt deploy
+description: Deploy dlt pipelines to production environments
+---
+
+The `dlt deploy` command prepares your pipeline for deployment and provides step-by-step instructions for deploying to GitHub Actions or Apache Airflow.
+
+## Synopsis
+
+```bash
+dlt deploy PIPELINE_SCRIPT DEPLOYMENT_METHOD [OPTIONS]
+```
+
+## Installation
+
+The deploy command requires additional dependencies:
+
+```bash
+pip install "dlt[cli]"
+```
+
+This installs:
+- `pipdeptree` - For dependency analysis
+- `cron-descriptor` - For schedule validation
+- Additional deployment utilities
+
+## Description
+
+The `dlt deploy` command:
+
+1. Validates that your pipeline has been run successfully at least once locally
+2. Detects the Git repository for your pipeline script
+3. Generates deployment configuration files
+4. Extracts required credentials and environment variables
+5. Provides detailed setup instructions for the selected deployment method
+
+**Important**: You must run your pipeline locally at least once before deploying. This allows dlt to:
+- Detect the pipeline configuration
+- Identify required credentials
+- Validate the pipeline works correctly
+
+## Arguments
+
+### PIPELINE_SCRIPT
+
+Path to your pipeline script (relative or absolute).
+
+```bash
+dlt deploy github_pipeline.py github-action --schedule "0 */6 * * *"
+dlt deploy pipelines/stripe_pipeline.py airflow-composer
+```
+
+### DEPLOYMENT_METHOD
+
+The deployment target. Available methods:
+
+- `github-action` - GitHub Actions (free tier available)
+- `airflow-composer` - Apache Airflow / Google Cloud Composer
+
+## Global Options
+
+### --location
+
+Advanced option. URL or local path to the deployment templates repository.
+
+Default: `https://github.com/dlt-hub/dlt-deploy-template.git`
+
+```bash
+dlt deploy pipeline.py github-action --schedule "0 0 * * *" --location /path/to/templates
+```
+
+### --branch
+
+Advanced option. Specific branch of the deployment repository to use.
+
+```bash
+dlt deploy pipeline.py github-action --schedule "0 0 * * *" --branch experimental
+```
+
+## Deployment Methods
+
+## GitHub Actions
+
+Deploys your pipeline to GitHub Actions, a CI/CD platform with a generous free tier.
+
+### Usage
+
+```bash
+dlt deploy PIPELINE_SCRIPT github-action --schedule CRON_EXPRESSION [OPTIONS]
+```
+
+### Required Options
+
+#### --schedule
+
+Cron expression defining when the pipeline runs. Must be quoted.
+
+```bash
+# Every 30 minutes
+dlt deploy github_pipeline.py github-action --schedule "*/30 * * * *"
+
+# Daily at midnight UTC
+dlt deploy github_pipeline.py github-action --schedule "0 0 * * *"
+
+# Every 6 hours
+dlt deploy github_pipeline.py github-action --schedule "0 */6 * * *"
+
+# Weekdays at 9 AM UTC
+dlt deploy github_pipeline.py github-action --schedule "0 9 * * 1-5"
+```
+
+Cron format: `minute hour day month weekday`
+
+### Optional Flags
+
+#### --run-manually
+
+Allows triggering the pipeline manually from the GitHub Actions UI. Default: `true`.
+
+```bash
+dlt deploy pipeline.py github-action --schedule "0 0 * * *" --run-manually
+```
+
+#### --run-on-push
+
+Runs the pipeline on every push to the repository. Default: `false`.
+
+```bash
+dlt deploy pipeline.py github-action --schedule "0 0 * * *" --run-on-push
+```
+
+### Example
+
+```bash
+dlt deploy github_pipeline.py github-action --schedule "*/30 * * * *" --run-manually
+```
+
+Output:
+
+```
+Your github-action deployment for pipeline github_pipeline in script github_pipeline.py is ready!
+* A github workflow file run_github_pipeline_workflow.yml was created in .github/workflows.
+* The schedule with which the pipeline is run is: Every 30 minutes. You can also run the pipeline manually.
+* The dependencies that will be used to run the pipeline are stored in requirements_github_action.txt.
+
+You should now add the secrets to github repository secrets, commit and push the pipeline files to github.
+
+1. Add the following secret values (typically stored in .dlt/secrets.toml):
+SOURCES__GITHUB__API_KEY
+DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID
+DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY
+DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL
+
+in https://github.com/yourusername/yourrepo/settings/secrets/actions
+
+2. Add stage deployment files to commit. Use your Git UI or the following command
+git add requirements_github_action.txt .github/workflows/run_github_pipeline_workflow.yml
+
+3. Commit the files above. Use your Git UI or the following command
+git commit -m 'run github_pipeline pipeline with github action'
+
+4. Push changes to github. Use your Git UI or the following command
+git push origin
+
+5. Your pipeline should be running! You can monitor it here:
+https://github.com/yourusername/yourrepo/actions/workflows/run_github_pipeline_workflow.yml
+```
+
+### Generated Files
+
+#### .github/workflows/run_PIPELINE_workflow.yml
+
+GitHub Actions workflow file:
+
+```yaml
+name: Run github_pipeline pipeline from github_pipeline.py
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+env:
+  SOURCES__GITHUB__API_KEY: ${{ secrets.SOURCES__GITHUB__API_KEY }}
+  DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID: ${{ secrets.DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID }}
+  DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY: ${{ secrets.DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY }}
+  DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL: ${{ secrets.DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL }}
+
+jobs:
+  run_pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements_github_action.txt
+      - name: Run pipeline
+        run: python github_pipeline.py
+```
+
+#### requirements_github_action.txt
+
+Frozen dependencies from your current environment (excluding system packages):
+
+```
+dlt[bigquery]==1.0.0
+PyGithub==2.1.1
+requests==2.31.0
+```
+
+### Setting Up GitHub Secrets
+
+1. Navigate to your repository on GitHub
+2. Go to **Settings** > **Secrets and variables** > **Actions**
+3. Click **New repository secret**
+4. Add each secret listed in the deploy output:
+   - Name: `SOURCES__GITHUB__API_KEY`
+   - Value: Your GitHub API token from `.dlt/secrets.toml`
+5. Repeat for all destination credentials
+
+## Airflow / Google Cloud Composer
+
+Deploys your pipeline to Apache Airflow or Google Cloud Composer.
+
+### Usage
+
+```bash
+dlt deploy PIPELINE_SCRIPT airflow-composer [OPTIONS]
+```
+
+### Options
+
+#### --secrets-format
+
+Format for providing secrets to Airflow. Choices: `env`, `toml`. Default: `toml`.
+
+**`env` format** - Each secret as a separate environment variable:
+
+```bash
+dlt deploy pipeline.py airflow-composer --secrets-format env
+```
+
+**`toml` format** - All secrets in a single TOML string:
+
+```bash
+dlt deploy pipeline.py airflow-composer --secrets-format toml
+```
+
+### Example
+
+```bash
+dlt deploy github_pipeline.py airflow-composer --secrets-format toml
+```
+
+Output:
+
+```
+Your airflow-composer deployment for pipeline github_pipeline is ready!
+* The airflow cloudbuild.yaml file was created in .airflow/build.
+* The dag_github_pipeline.py script was created in .airflow/dags.
+
+You must prepare your DAG first:
+1. Import your sources in dag_github_pipeline.py, configure the DAG and tasks as needed.
+2. Test the DAG with Airflow locally.
+   See Airflow getting started: https://airflow.apache.org/docs/apache-airflow/stable/start.html
+
+If you are planning run the pipeline with Google Cloud Composer, follow the next instructions:
+
+1. Read this doc and set up the Environment: https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer
+2. Set _BUCKET_NAME up in .airflow/build/cloudbuild.yaml file.
+3. Add the following toml-string in the Google Composer UI as the DLT_SECRETS_TOML variable.
+
+[sources.github]
+api_key = "ghp_your_token"
+
+[destination.bigquery.credentials]
+project_id = "your-project"
+private_key = "-----BEGIN PRIVATE KEY-----..."
+client_email = "service@project.iam.gserviceaccount.com"
+
+4. Add dlt package below using Google Composer UI.
+dlt[bigquery]>=1.0.0
+
+Note: You may need to add more packages ie. when your source requires additional dependencies
+
+5. Commit and push the pipeline files to github:
+a. Add stage deployment files to commit. Use your Git UI or the following command
+git add .airflow/dags/dag_github_pipeline.py .airflow/build/cloudbuild.yaml
+
+b. Commit the files above. Use your Git UI or the following command
+git commit -m 'initiate github_pipeline pipeline with Airflow'
+
+c. Push changes to github. Use your Git UI or the following command
+git push origin
+
+6. You should see your pipeline in Airflow.
+```
+
+### Generated Files
+
+#### .airflow/dags/dag_PIPELINE.py
+
+Airflow DAG template:
+
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+import dlt
+
+def run_pipeline():
+    # TODO: Import and configure your sources
+    # from github import github_source
+    # pipeline = dlt.pipeline(
+    #     pipeline_name="github_pipeline",
+    #     destination="bigquery",
+    #     dataset_name="github_data"
+    # )
+    # pipeline.run(github_source())
+    pass
+
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'github_pipeline',
+    default_args=default_args,
+    description='dlt pipeline',
+    schedule_interval=timedelta(hours=6),
+    catchup=False,
+)
+
+run_task = PythonOperator(
+    task_id='run_pipeline',
+    python_callable=run_pipeline,
+    dag=dag,
+)
+```
+
+#### .airflow/build/cloudbuild.yaml
+
+Google Cloud Build configuration for syncing DAGs:
+
+```yaml
+steps:
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - '-m'
+      - 'rsync'
+      - '-r'
+      - '-c'
+      - '-d'
+      - '.airflow/dags'
+      - 'gs://${_BUCKET_NAME}/dags'
+
+substitutions:
+  _BUCKET_NAME: 'your-composer-bucket'
+```
+
+### Setting Up in Google Cloud Composer
+
+1. **Create a Composer Environment**
+   ```bash
+   gcloud composer environments create github-pipeline \
+     --location us-central1 \
+     --python-version 3.10
+   ```
+
+2. **Install dlt Package**
+   - Go to Cloud Composer in Google Cloud Console
+   - Select your environment
+   - Navigate to **PyPI Packages**
+   - Add `dlt[bigquery]>=1.0.0`
+
+3. **Add Secrets**
+   
+   For `toml` format:
+   - Navigate to **Environment Variables**
+   - Add variable `DLT_SECRETS_TOML`
+   - Paste the entire contents of your `.dlt/secrets.toml`
+   
+   For `env` format:
+   - Add each credential as a separate environment variable:
+     - `SOURCES__GITHUB__API_KEY`
+     - `DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID`
+     - etc.
+
+4. **Configure Cloud Build**
+   - Edit `.airflow/build/cloudbuild.yaml`
+   - Set `_BUCKET_NAME` to your Composer bucket (found in environment details)
+   - Set up Cloud Build trigger for your repository
+
+5. **Push to GitHub**
+   ```bash
+   git add .airflow/
+   git commit -m "Add Airflow deployment"
+   git push origin main
+   ```
+
+## Prerequisites
+
+### Git Repository Required
+
+The deploy command requires your pipeline to be in a Git repository:
+
+```bash
+# Initialize a new repository if needed
+git init
+git add .
+git commit -m "Initial commit"
+
+# Link to GitHub
+git remote add origin https://github.com/yourusername/yourrepo.git
+git push -u origin main
+```
+
+### Pipeline Must Be Run Locally
+
+Run your pipeline at least once before deploying:
+
+```bash
+python github_pipeline.py
+```
+
+This creates the pipeline working directory that dlt inspects during deployment.
+
+## Troubleshooting
+
+### Error: No git repository found
+
+```
+No git repository found for pipeline script github_pipeline.py.
+```
+
+**Solution**: Initialize a Git repository:
+
+```bash
+git init
+```
+
+### Error: Pipeline was not run
+
+```
+You must run the pipeline locally successfully at least once in order to deploy it.
+```
+
+**Solution**: Run your pipeline script:
+
+```bash
+python your_pipeline.py
+```
+
+### Error: Invalid schedule expression
+
+```
+Setting 'schedule' for 'github-action' is required!
+```
+
+**Solution**: Provide a valid cron expression in quotes:
+
+```bash
+dlt deploy pipeline.py github-action --schedule "*/30 * * * *"
+```
+
+### Modified Files Warning
+
+```
+You have modified files in your repository. Do not forget to push changes to your pipeline script as well!
+```
+
+**Solution**: Commit and push all changes:
+
+```bash
+git add .
+git commit -m "Update pipeline"
+git push origin
+```
+
+## Best Practices
+
+### Test Locally First
+
+Always test your pipeline locally before deploying:
+
+```bash
+# Run pipeline
+python pipeline.py
+
+# Verify it succeeded
+dlt pipeline my_pipeline info
+```
+
+### Use Descriptive Schedules
+
+Choose schedules that match your data freshness requirements:
+
+- **Real-time APIs**: Every 5-15 minutes
+- **Daily reports**: Once per day at off-peak hours
+- **Historical data**: Weekly or monthly
+
+### Secure Your Secrets
+
+- Never commit `.dlt/secrets.toml` to Git
+- Use environment variables in production
+- Rotate credentials regularly
+- Use least-privilege service accounts
+
+### Monitor Your Pipelines
+
+- Set up alerts for failures
+- Check logs regularly
+- Monitor data quality
+- Track load times and volumes
+
+## See Also
+
+- [dlt pipeline](/cli/pipeline) - Monitor pipeline execution
+- [GitHub Actions Deployment Guide](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline)
+- [Airflow Deployment Guide](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Apache Airflow Documentation](https://airflow.apache.org/)
+- [Google Cloud Composer](https://cloud.google.com/composer)

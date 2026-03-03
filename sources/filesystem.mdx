@@ -1,0 +1,564 @@
+---
+title: Filesystem Source
+description: Load files from cloud storage and local filesystems with support for CSV, Parquet, JSONL, and custom formats
+---
+
+# Filesystem Source
+
+The `filesystem` source reads files from various storage locations including cloud storage (AWS S3, Google Cloud Storage, Azure Blob Storage) and local filesystems. It provides built-in readers for common file formats and supports custom file processing.
+
+## Quick Start
+
+Load CSV files from an S3 bucket:
+
+```python
+import dlt
+from dlt.sources.filesystem import readers
+
+# Load CSV files from S3
+csv_reader = readers(
+    bucket_url="s3://my-bucket/data/",
+    file_glob="*.csv",
+).read_csv()
+
+pipeline = dlt.pipeline(
+    pipeline_name="s3_csv_pipeline",
+    destination="duckdb",
+    dataset_name="s3_data"
+)
+
+load_info = pipeline.run(csv_reader)
+print(load_info)
+```
+
+## Supported Storage Locations
+
+<CardGroup cols={2}>
+  <Card title="AWS S3" icon="aws">
+    ```python
+    bucket_url="s3://bucket-name/path/"
+    ```
+  </Card>
+  <Card title="Google Cloud Storage" icon="google">
+    ```python
+    bucket_url="gs://bucket-name/path/"
+    ```
+  </Card>
+  <Card title="Azure Blob Storage" icon="microsoft">
+    ```python
+    bucket_url="az://container-name/path/"
+    ```
+  </Card>
+  <Card title="Local Filesystem" icon="folder">
+    ```python
+    bucket_url="file:///local/path/"
+    ```
+  </Card>
+  <Card title="SFTP" icon="server">
+    ```python
+    bucket_url="sftp://user@host/path/"
+    ```
+  </Card>
+  <Card title="Google Drive" icon="google-drive">
+    ```python
+    bucket_url="gdrive://folder-id/"
+    ```
+  </Card>
+</CardGroup>
+
+## Authentication
+
+Configure credentials for cloud storage providers:
+
+<Tabs>
+  <Tab title="AWS S3">
+    ```python
+    from dlt.sources.credentials import AwsCredentials
+
+    credentials = AwsCredentials(
+        aws_access_key_id=dlt.secrets["aws_access_key_id"],
+        aws_secret_access_key=dlt.secrets["aws_secret_access_key"],
+    )
+
+    csv_reader = readers(
+        bucket_url="s3://my-bucket/data/",
+        credentials=credentials,
+    ).read_csv()
+    ```
+
+    Or use environment variables:
+    ```bash
+    export AWS_ACCESS_KEY_ID="your_access_key"
+    export AWS_SECRET_ACCESS_KEY="your_secret_key"
+    ```
+  </Tab>
+
+  <Tab title="Google Cloud Storage">
+    ```python
+    from dlt.sources.credentials import GcpServiceAccountCredentials
+
+    credentials = GcpServiceAccountCredentials(
+        project_id="my-project",
+        private_key=dlt.secrets["gcp_private_key"],
+        client_email=dlt.secrets["gcp_client_email"],
+    )
+
+    csv_reader = readers(
+        bucket_url="gs://my-bucket/data/",
+        credentials=credentials,
+    ).read_csv()
+    ```
+
+    Or use service account JSON:
+    ```bash
+    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+    ```
+  </Tab>
+
+  <Tab title="Azure Blob Storage">
+    ```python
+    from dlt.sources.credentials import AzureCredentials
+
+    credentials = AzureCredentials(
+        azure_storage_account_name=dlt.secrets["account_name"],
+        azure_storage_account_key=dlt.secrets["account_key"],
+    )
+
+    csv_reader = readers(
+        bucket_url="az://my-container/data/",
+        credentials=credentials,
+    ).read_csv()
+    ```
+  </Tab>
+</Tabs>
+
+## Built-in File Readers
+
+The `readers` source provides built-in support for common file formats:
+
+### CSV Files
+
+```python
+from dlt.sources.filesystem import readers
+
+# Read CSV files with default settings
+csv_data = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="**/*.csv",  # Recursive pattern
+).read_csv()
+
+# Customize CSV reading with pandas kwargs
+csv_data = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="*.csv",
+).read_csv(
+    chunksize=10000,
+    sep=";",
+    encoding="utf-8",
+    dtype={"id": str},
+)
+
+pipeline.run(csv_data)
+```
+
+### Parquet Files
+
+```python
+# Read Parquet files
+parquet_data = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="**/*.parquet",
+).read_parquet(chunksize=50000)
+
+pipeline.run(parquet_data)
+```
+
+### JSONL Files
+
+```python
+# Read JSON Lines files
+jsonl_data = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="**/*.jsonl",
+).read_jsonl(chunksize=10000)
+
+pipeline.run(jsonl_data)
+```
+
+### DuckDB CSV Reader
+
+For faster CSV processing, use the DuckDB reader:
+
+```python
+# Use DuckDB for fast CSV reading
+csv_duckdb = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="*.csv",
+).read_csv_duckdb(
+    chunksize=100000,
+    # Pass DuckDB-specific options
+    header=True,
+    delim=",",
+)
+
+pipeline.run(csv_duckdb)
+```
+
+## File Filtering
+
+Use glob patterns to filter files:
+
+<CodeGroup>
+```python All CSV Files (Recursive)
+# Match all CSV files in all subdirectories
+file_glob="**/*.csv"
+```
+
+```python Specific Directory
+# Match CSV files only in data/ directory
+file_glob="data/*.csv"
+```
+
+```python Multiple Extensions
+# Match multiple file types
+file_glob="*.{csv,tsv,txt}"
+```
+
+```python Date Pattern
+# Match files with date pattern
+file_glob="sales_2024-*.csv"
+```
+</CodeGroup>
+
+## Using the Filesystem Resource Directly
+
+For custom file processing, use the `filesystem` resource:
+
+```python
+from dlt.sources.filesystem import filesystem
+
+@dlt.resource
+def process_files():
+    """Custom file processing logic"""
+    files = filesystem(
+        bucket_url="s3://my-bucket/data/",
+        file_glob="*.txt",
+    )
+
+    for file_batch in files:
+        for file_item in file_batch:
+            # Read file content
+            content = file_item.read_bytes()
+
+            # Process content
+            processed_data = custom_parser(content)
+
+            yield processed_data
+
+pipeline.run(process_files())
+```
+
+## File Metadata
+
+Access file metadata from FileItem objects:
+
+```python
+from dlt.sources.filesystem import filesystem
+
+@dlt.resource
+def file_metadata():
+    """Extract file metadata"""
+    files = filesystem(
+        bucket_url="s3://my-bucket/",
+        file_glob="**/*",
+    )
+
+    for file_batch in files:
+        for file_item in file_batch:
+            yield {
+                "file_url": file_item["file_url"],
+                "file_name": file_item["file_name"],
+                "mime_type": file_item["mime_type"],
+                "size_in_bytes": file_item["size_in_bytes"],
+                "modification_date": file_item["modification_date"],
+            }
+
+pipeline.run(file_metadata())
+```
+
+## Incremental Loading
+
+Load only new or modified files:
+
+```python
+from dlt.sources.filesystem import readers
+
+# Load files incrementally based on modification date
+csv_data = readers(
+    bucket_url="s3://my-bucket/data/",
+    file_glob="**/*.csv",
+    incremental=dlt.sources.incremental(
+        cursor_path="modification_date",
+        initial_value="2024-01-01T00:00:00Z"
+    ),
+).read_csv()
+
+pipeline.run(csv_data)
+```
+
+<Note>
+On subsequent runs, only files modified after the last run will be processed.
+</Note>
+
+## Complete Example: S3 to DuckDB
+
+A comprehensive example loading multiple file formats from S3:
+
+```python
+import dlt
+from dlt.sources.filesystem import readers, filesystem
+from dlt.sources.credentials import AwsCredentials
+
+@dlt.source
+def s3_data_source():
+    """Load multiple file formats from S3"""
+
+    # AWS credentials from secrets
+    credentials = AwsCredentials(
+        aws_access_key_id=dlt.secrets["aws_access_key_id"],
+        aws_secret_access_key=dlt.secrets["aws_secret_access_key"],
+    )
+
+    # Load CSV files with incremental loading
+    yield readers(
+        bucket_url="s3://my-bucket/csv/",
+        file_glob="**/*.csv",
+        credentials=credentials,
+        incremental=dlt.sources.incremental(
+            cursor_path="modification_date",
+            initial_value="2024-01-01T00:00:00Z"
+        ),
+    ).read_csv(
+        chunksize=10000,
+        dtype={"id": str}
+    )
+
+    # Load Parquet files
+    yield readers(
+        bucket_url="s3://my-bucket/parquet/",
+        file_glob="**/*.parquet",
+        credentials=credentials,
+    ).read_parquet(chunksize=50000)
+
+    # Load JSONL files
+    yield readers(
+        bucket_url="s3://my-bucket/jsonl/",
+        file_glob="**/*.jsonl",
+        credentials=credentials,
+    ).read_jsonl(chunksize=10000)
+
+# Create and run pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="s3_pipeline",
+    destination="duckdb",
+    dataset_name="s3_data"
+)
+
+load_info = pipeline.run(s3_data_source())
+print(load_info)
+```
+
+## Custom File Processing
+
+Implement custom logic for specific file formats:
+
+```python
+import json
+from dlt.sources.filesystem import filesystem
+
+@dlt.resource
+def process_custom_format():
+    """Process custom file format"""
+    files = filesystem(
+        bucket_url="s3://my-bucket/custom/",
+        file_glob="*.custom",
+    )
+
+    for file_batch in files:
+        for file_item in file_batch:
+            # Read and decode file
+            content = file_item.read_bytes().decode("utf-8")
+
+            # Custom parsing logic
+            lines = content.split("\n")
+            for line in lines:
+                if line.strip():
+                    # Parse custom format
+                    record = parse_custom_line(line)
+                    yield record
+
+def parse_custom_line(line: str) -> dict:
+    """Custom parsing logic"""
+    # Implement your parsing logic here
+    parts = line.split("|")
+    return {
+        "field1": parts[0],
+        "field2": parts[1],
+        "field3": int(parts[2]),
+    }
+
+pipeline.run(process_custom_format())
+```
+
+## Advanced Configuration
+
+### Customize fsspec Options
+
+Pass additional options to the underlying fsspec filesystem:
+
+```python
+csv_data = readers(
+    bucket_url="s3://my-bucket/",
+    file_glob="*.csv",
+    kwargs={"use_ssl": True},  # fsspec options
+    client_kwargs={"region_name": "us-west-2"},  # boto3 client options
+).read_csv()
+```
+
+### Extract File Content
+
+Load file content directly into the data:
+
+```python
+files_with_content = filesystem(
+    bucket_url="s3://my-bucket/",
+    file_glob="*.txt",
+    extract_content=True,  # Adds file_content field
+)
+
+for file_batch in files_with_content:
+    for file_item in file_batch:
+        content = file_item["file_content"]
+        # Process content
+```
+
+### Control Batch Size
+
+Adjust the number of files processed per batch:
+
+```python
+files = filesystem(
+    bucket_url="s3://my-bucket/",
+    file_glob="*.csv",
+    files_per_page=50,  # Process 50 files at a time
+)
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use appropriate chunk sizes">
+    Balance memory usage and performance with appropriate chunk sizes:
+
+    ```python
+    # For large CSV files, use smaller chunks
+    csv_data = readers(
+        bucket_url="s3://...",
+        file_glob="*.csv",
+    ).read_csv(chunksize=10000)
+
+    # For Parquet, larger chunks are often better
+    parquet_data = readers(
+        bucket_url="s3://...",
+        file_glob="*.parquet",
+    ).read_parquet(chunksize=100000)
+    ```
+  </Accordion>
+
+  <Accordion title="Use incremental loading for growing datasets">
+    Always use incremental loading when files are continuously added:
+
+    ```python
+    csv_data = readers(
+        bucket_url="s3://...",
+        file_glob="**/*.csv",
+        incremental=dlt.sources.incremental(
+            cursor_path="modification_date"
+        ),
+    ).read_csv()
+    ```
+  </Accordion>
+
+  <Accordion title="Optimize glob patterns">
+    Use specific glob patterns to minimize file scanning:
+
+    ```python
+    # ✅ Good: Specific pattern
+    file_glob="data/2024/**/*.csv"
+
+    # ❌ Bad: Too broad
+    file_glob="**/*"
+    ```
+  </Accordion>
+
+  <Accordion title="Secure credentials">
+    Never hardcode credentials. Use environment variables or `secrets.toml`:
+
+    ```toml
+    # secrets.toml
+    [sources.aws]
+    aws_access_key_id = "your_access_key"
+    aws_secret_access_key = "your_secret_key"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication errors">
+    Ensure credentials are correctly configured:
+
+    ```python
+    # Test S3 access
+    from dlt.common.storages.fsspec_filesystem import fsspec_filesystem
+
+    fs, _ = fsspec_filesystem("s3://my-bucket/")
+    print(fs.ls("."))  # List files to test access
+    ```
+  </Accordion>
+
+  <Accordion title="No files found">
+    Check your glob pattern and bucket URL:
+
+    ```python
+    # Debug: List all files
+    files = filesystem(
+        bucket_url="s3://my-bucket/",
+        file_glob="**/*",  # Match everything
+    )
+
+    for file_batch in files:
+        for file_item in file_batch:
+            print(file_item["file_url"])
+    ```
+  </Accordion>
+
+  <Accordion title="Memory issues with large files">
+    Reduce chunk size or process files individually:
+
+    ```python
+    # Smaller chunks
+    csv_data = readers(
+        bucket_url="s3://...",
+        file_glob="*.csv",
+    ).read_csv(chunksize=1000)  # Smaller chunks
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- Learn about [Custom Sources](/sources/custom-sources)
+- Explore [REST API Source](/sources/rest-api)
+- Check [Available Sources](/sources/available-sources)

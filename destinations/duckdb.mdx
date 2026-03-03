@@ -1,0 +1,521 @@
+---
+title: DuckDB
+description: Load data into DuckDB with dlt
+---
+
+# DuckDB
+
+DuckDB is an in-process SQL OLAP database management system designed for analytical query workloads. It's lightweight, fast, and requires no separate server process.
+
+## Install dlt with DuckDB
+
+To use DuckDB as a destination, install dlt with the DuckDB extra:
+
+```bash
+pip install "dlt[duckdb]"
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+import dlt
+
+# Define your data source
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Create pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+# Run the pipeline
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+### Database Path
+
+DuckDB can use a file-based database or an in-memory database:
+
+<CodeGroup>
+```python File-based Database
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+# Creates a .duckdb file in the pipeline directory
+```
+
+```python Custom Path
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb("/path/to/my_database.duckdb"),
+    dataset_name="my_dataset"
+)
+```
+
+```python Existing Connection
+import duckdb
+import dlt
+from dlt.destinations import duckdb as dlt_duckdb
+
+conn = duckdb.connect("my_database.duckdb")
+
+pipeline = dlt.pipeline(
+    destination=dlt_duckdb(conn),
+    dataset_name="my_dataset"
+)
+```
+</CodeGroup>
+
+<Warning>
+  Using `:memory:` as the database path is not supported by dlt as the database would be lost after the pipeline completes.
+</Warning>
+
+### Basic Configuration
+
+<ParamField path="database" type="string">
+  Path to the DuckDB database file or special value `:pipeline:` to use the pipeline working directory
+</ParamField>
+
+<ParamField path="read_only" type="bool" default="false">
+  Open the database in read-only mode
+</ParamField>
+
+<ParamField path="create_indexes" type="bool" default="false">
+  Whether to create unique indexes (this slows loading down significantly)
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="extensions" type="list">
+  List of DuckDB extensions to load on each connection (e.g., `["httpfs", "parquet"]`)
+</ParamField>
+
+<ParamField path="global_config" type="dict">
+  Global configuration settings applied once on each newly opened connection
+</ParamField>
+
+<ParamField path="local_config" type="dict">
+  Local configuration settings applied to each cursor connection
+</ParamField>
+
+<ParamField path="pragmas" type="list">
+  List of PRAGMA statements applied to each cursor connection
+</ParamField>
+
+## Using DuckDB Credentials
+
+Configure DuckDB in `.dlt/secrets.toml`:
+
+```toml
+[destination.duckdb.credentials]
+database = "my_pipeline.duckdb"
+read_only = false
+```
+
+With extensions and configuration:
+
+```toml
+[destination.duckdb.credentials]
+database = "my_pipeline.duckdb"
+extensions = ["httpfs", "parquet"]
+
+[destination.duckdb.credentials.global_config]
+memory_limit = "4GB"
+threads = 4
+
+[destination.duckdb.credentials.local_config]
+max_memory = "2GB"
+```
+
+## Data Loading
+
+DuckDB provides excellent performance for analytical queries and supports nested data structures.
+
+### Supported File Formats
+
+<CodeGroup>
+```python JSONL (Default)
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+# JSONL is the default format
+```
+
+```python Parquet (Recommended)
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+```python CSV
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="csv")
+```
+</CodeGroup>
+
+<Note>
+  DuckDB works exceptionally well with Parquet files due to its columnar storage engine.
+</Note>
+
+## Write Dispositions
+
+DuckDB supports all write dispositions:
+
+<CodeGroup>
+```python Append
+@dlt.resource(write_disposition="append")
+def append_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Replace
+@dlt.resource(write_disposition="replace")
+def replace_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Merge
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id"
+)
+def merge_data():
+    yield {"id": 1, "value": "updated"}
+```
+</CodeGroup>
+
+## Data Types
+
+DuckDB data type mapping:
+
+| dlt Type | DuckDB Type |
+|----------|-------------|
+| text | VARCHAR |
+| double | DOUBLE |
+| bool | BOOLEAN |
+| timestamp | TIMESTAMP WITH TIME ZONE |
+| date | DATE |
+| time | TIME |
+| bigint | BIGINT |
+| binary | BLOB |
+| decimal | DECIMAL |
+| json | JSON |
+
+### Nested Data Support
+
+DuckDB has excellent support for nested data structures:
+
+```python
+import dlt
+
+@dlt.resource
+def nested_data():
+    yield {
+        "id": 1,
+        "user": {
+            "name": "Alice",
+            "age": 30
+        },
+        "tags": ["python", "data"]
+    }
+
+pipeline = dlt.pipeline(destination="duckdb", dataset_name="my_dataset")
+pipeline.run(nested_data())
+```
+
+Query nested data:
+
+```sql
+SELECT 
+    id,
+    user.name as user_name,
+    user.age as user_age,
+    tags
+FROM nested_data;
+```
+
+### Integer Precision
+
+DuckDB supports various integer sizes based on precision:
+
+```python
+import dlt
+
+@dlt.resource
+def integer_types():
+    yield {
+        "tiny": 100,      # TINYINT (8-bit)
+        "small": 10000,   # SMALLINT (16-bit)
+        "medium": 100000, # INTEGER (32-bit)
+        "big": 10**15     # BIGINT (64-bit)
+    }
+```
+
+## Advanced Features
+
+### Extensions
+
+Load DuckDB extensions for additional functionality:
+
+```python
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(
+        extensions=["httpfs", "parquet", "json"]
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+Common extensions:
+- `httpfs`: Read files from HTTP/S3
+- `parquet`: Enhanced Parquet support
+- `json`: JSON functions
+- `postgres_scanner`: Query PostgreSQL databases
+
+### Global Configuration
+
+Set global DuckDB settings:
+
+```python
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(
+        global_config={
+            "memory_limit": "4GB",
+            "threads": 4,
+            "default_order": "DESC"
+        }
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### Pragmas
+
+Apply PRAGMA statements:
+
+```python
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(
+        pragmas=["enable_profiling", "memory_limit='2GB'"]
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+## Querying DuckDB
+
+Access the DuckDB connection to run queries:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+# Load data
+pipeline.run(my_data())
+
+# Query the data
+with pipeline.sql_client() as client:
+    result = client.execute_sql("SELECT * FROM my_data LIMIT 10")
+    for row in result:
+        print(row)
+```
+
+Or use the DuckDB connection directly:
+
+```python
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data())
+
+# Get the database path
+db_path = pipeline.pipeline_name + ".duckdb"
+
+# Connect and query
+conn = duckdb.connect(db_path)
+df = conn.execute("SELECT * FROM my_dataset.my_data").df()
+print(df.head())
+```
+
+## Performance Optimization
+
+### Memory Management
+
+Control memory usage:
+
+```python
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(
+        global_config={"memory_limit": "2GB"}
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### Parallel Processing
+
+Adjust thread count:
+
+```python
+import dlt
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(
+        global_config={"threads": 8}
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### File Format
+
+Use Parquet for best performance:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+## Integration with Analytics Tools
+
+### Pandas
+
+Convert query results to pandas DataFrames:
+
+```python
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data())
+
+conn = duckdb.connect(f"{pipeline.pipeline_name}.duckdb")
+df = conn.execute("SELECT * FROM my_dataset.my_data").df()
+print(df.describe())
+```
+
+### Arrow
+
+Work with Arrow tables:
+
+```python
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data())
+
+conn = duckdb.connect(f"{pipeline.pipeline_name}.duckdb")
+arrow_table = conn.execute("SELECT * FROM my_dataset.my_data").arrow()
+print(arrow_table.schema)
+```
+
+## Local Development
+
+DuckDB is perfect for local development and testing:
+
+```python
+import dlt
+
+# Development: use DuckDB locally
+if __name__ == "__main__":
+    pipeline = dlt.pipeline(
+        destination="duckdb",
+        dataset_name="dev_dataset"
+    )
+    pipeline.run(my_data())
+    
+    # Query and verify
+    with pipeline.sql_client() as client:
+        result = client.execute_sql("SELECT COUNT(*) FROM my_data")
+        print(f"Loaded {result[0][0]} rows")
+```
+
+## Limitations
+
+<Warning>
+  - DuckDB is single-process (not suitable for concurrent writes)
+  - Database files are not compatible across different DuckDB versions
+  - Limited support for concurrent readers in older versions
+  - Not recommended for production OLTP workloads
+</Warning>
+
+## Use Cases
+
+DuckDB is ideal for:
+
+- **Local development and testing**: Fast iteration without infrastructure
+- **Data analysis**: Excellent analytical query performance
+- **ETL pipelines**: Efficient data transformations
+- **Embedded analytics**: No separate server process needed
+- **Prototyping**: Quick setup and exploration
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="DuckDB Docs" icon="duck" href="https://duckdb.org/docs/">
+    Official DuckDB documentation
+  </Card>
+  <Card title="DuckDB Extensions" icon="puzzle-piece" href="https://duckdb.org/docs/extensions/overview">
+    Available DuckDB extensions
+  </Card>
+</CardGroup>

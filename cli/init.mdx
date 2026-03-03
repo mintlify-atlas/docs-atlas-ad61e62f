@@ -1,0 +1,289 @@
+---
+title: dlt init
+description: Initialize a new dlt pipeline project
+---
+
+The `dlt init` command creates a new dlt pipeline script that loads data from a source to a destination.
+
+## Synopsis
+
+```bash
+dlt init [SOURCE] [DESTINATION] [OPTIONS]
+dlt init --list-sources
+dlt init --list-destinations
+```
+
+## Description
+
+When you run `dlt init`, several things happen:
+
+1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files
+2. Checks if the `SOURCE` argument matches one of the verified sources and, if so, adds it to your project
+3. If the `SOURCE` is unknown, uses a generic template to get you started
+4. Rewrites the pipeline scripts to use your `DESTINATION`
+5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination
+6. Creates `requirements.txt` with dependencies required by the source and destination (if one doesn't exist)
+
+This command can be used multiple times in the same folder to add more sources, destinations, and pipelines. It will also update verified source code to the newest version if run again with an existing source name.
+
+## Arguments
+
+### SOURCE
+
+Name of the data source for which to create a pipeline. Can be:
+
+- A **verified source** (e.g., `github`, `stripe`, `google_analytics`)
+- A **core source** (e.g., `sql_database`, `rest_api`, `filesystem`)
+- A **template name** for a custom pipeline
+- A **dlthub source** prefixed with `dlthub:` (e.g., `dlthub:myapi`)
+
+If the source doesn't match any known source, dlt will use the default template.
+
+### DESTINATION
+
+Name of the destination where data will be loaded. Examples:
+
+- `bigquery`
+- `snowflake`
+- `redshift`
+- `postgres`
+- `duckdb`
+- `filesystem`
+- `motherduck`
+
+## Options
+
+### --list-sources, -l
+
+Shows all available verified sources with descriptions. For each source, checks if your local dlt version requires an update.
+
+```bash
+dlt init --list-sources
+```
+
+Example output:
+
+```
+---
+Available dlt core sources:
+---
+sql_database: Load tables from SQL databases
+rest_api: Load data from REST APIs
+filesystem: Load files from local or remote filesystems
+
+---
+Available verified sources:
+---
+github: Load GitHub repository data, issues, pull requests, and events
+stripe: Load Stripe payments, customers, and subscription data
+google_analytics: Load Google Analytics reports and metrics
+```
+
+### --list-destinations
+
+Shows the names of all core dlt destinations.
+
+```bash
+dlt init --list-destinations
+```
+
+Example output:
+
+```
+---
+Available dlt core destinations:
+---
+bigquery
+snowflake
+redshift
+postgres
+duckdb
+filesystem
+```
+
+### --location
+
+Advanced option. Specifies a custom URL or local path to the verified sources repository.
+
+```bash
+dlt init github bigquery --location /path/to/sources
+```
+
+Default: `https://github.com/dlt-hub/verified-sources.git`
+
+### --branch
+
+Advanced option. Uses a specific branch of the verified sources repository.
+
+```bash
+dlt init github bigquery --branch development
+```
+
+### --eject
+
+Ejects the source code of core sources (like `sql_database` or `rest_api`) so they become editable.
+
+```bash
+dlt init sql_database postgres --eject
+```
+
+When using `--eject`:
+- Source code will be copied into your project
+- You'll need to modify the pipeline script to import from the ejected source
+- Useful when you need to customize core source behavior
+
+## Examples
+
+### Initialize a GitHub to BigQuery Pipeline
+
+```bash
+dlt init github bigquery
+```
+
+Output:
+
+```
+Looking up verified sources at https://github.com/dlt-hub/verified-sources.git...
+Creating a new pipeline with the verified source github (Load GitHub repository data)
+Do you want to proceed? [Y/n]: Y
+
+Verified source github was added to your project!
+* See the usage examples and code snippets to copy from github_pipeline.py
+* Add credentials for github and bigquery to .dlt/secrets.toml
+* Add the required dependencies to requirements.txt:
+  dlt[bigquery]>=1.0.0
+  PyGithub>=2.1.1
+```
+
+### Create a Custom Pipeline with Template
+
+```bash
+dlt init my_source duckdb
+```
+
+Creates a new pipeline using the default template for an unknown source.
+
+### Initialize with dlthub Source
+
+```bash
+dlt init dlthub:shopify postgres
+```
+
+Creates a custom REST API pipeline tailored for Shopify with IDE-specific rules and snippets.
+
+### Eject a Core Source
+
+```bash
+dlt init sql_database postgres --eject
+```
+
+Copies the `sql_database` source code into your project for customization.
+
+### Update Existing Source
+
+```bash
+# Initial installation
+dlt init stripe bigquery
+
+# Later, update to newest version
+dlt init stripe bigquery
+```
+
+When updating, dlt will:
+- Detect modified files and ask how to handle conflicts
+- Give options to Skip, Apply (overwrite), or Merge changes
+- Preserve your local modifications when possible
+
+## Project Structure
+
+After running `dlt init github bigquery`, your project structure will look like:
+
+```
+.
+├── .dlt/
+│   ├── config.toml          # Non-sensitive configuration
+│   └── secrets.toml         # Credentials and secrets
+├── .gitignore
+├── github/                   # Source-specific files
+│   ├── __init__.py
+│   ├── helpers.py
+│   └── settings.py
+├── github_pipeline.py       # Example pipeline script
+└── requirements.txt         # Python dependencies
+```
+
+## Configuration Files
+
+### .dlt/secrets.toml
+
+Contains credentials for sources and destinations:
+
+```toml
+[sources.github]
+api_key = "ghp_your_token_here"
+
+[destination.bigquery.credentials]
+project_id = "your-project"
+private_key = "-----BEGIN PRIVATE KEY-----\n..."
+client_email = "service-account@project.iam.gserviceaccount.com"
+```
+
+### .dlt/config.toml
+
+Contains non-sensitive configuration:
+
+```toml
+[runtime]
+dlthub_telemetry = true
+
+[sources.github]
+owner = "dlt-hub"
+repo = "dlt"
+```
+
+## Version Compatibility
+
+If a source requires a newer version of dlt than currently installed, you'll see a warning:
+
+```
+This pipeline requires a newer version of dlt than your installed version (0.4.0).
+Pipeline requires 'dlt>=1.0.0'
+Would you like to continue anyway? [Y/n]:
+```
+
+To update dlt:
+
+```bash
+pip install -U "dlt>=1.0.0"
+```
+
+## Troubleshooting
+
+### Invalid Source Name
+
+Source names must be valid Python identifiers (snake_case):
+
+```bash
+# Invalid
+dlt init My-Source bigquery  # Error: not a valid Python identifier
+
+# Valid
+dlt init my_source bigquery
+```
+
+### Pipeline Script Already Exists
+
+If you try to initialize a source that already has a pipeline script:
+
+```
+Pipeline script github_pipeline.py already exists, exiting
+```
+
+Delete or rename the existing script first, or use a different source name.
+
+## See Also
+
+- [dlt pipeline](/cli/pipeline) - Inspect and manage pipelines
+- [dlt deploy](/cli/deploy) - Deploy pipelines to production
+- [Walkthroughs: Create a Pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
+- [Walkthroughs: Add a Verified Source](https://dlthub.com/docs/walkthroughs/add-a-verified-source)

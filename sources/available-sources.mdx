@@ -1,0 +1,350 @@
+---
+title: Available Sources
+description: Browse all built-in sources available in dlt for common data loading scenarios
+---
+
+# Available Sources
+
+dlt provides several built-in sources for common data loading scenarios. These sources are production-ready and handle authentication, pagination, and incremental loading automatically.
+
+## Built-in Sources
+
+### REST API
+
+<Card title="REST API Source" icon="server" href="/sources/rest-api">
+  **Load data from any REST API with declarative configuration**
+
+  The REST API source provides a flexible way to load data from REST APIs without writing custom code. It supports:
+
+  - Multiple authentication methods (Bearer, API Key, OAuth 2.0, HTTP Basic)
+  - Automatic pagination (JSON link, offset, page number, header link)
+  - Incremental loading with cursor tracking
+  - Dependent resources for loading related data
+  - Custom data selectors for nested JSON responses
+
+  <CodeGroup>
+  ```python Quick Example
+  from dlt.sources.rest_api import rest_api_source
+
+  source = rest_api_source({
+      "client": {
+          "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+          "auth": {"token": dlt.secrets["github_token"]},
+      },
+      "resources": [
+          {
+              "name": "issues",
+              "endpoint": {"path": "issues"},
+          },
+      ],
+  })
+
+  pipeline.run(source)
+  ```
+  </CodeGroup>
+
+  **Use cases:** APIs, SaaS platforms, web services, microservices
+</Card>
+
+### SQL Database
+
+<Card title="SQL Database Source" icon="database" href="/sources/sql-database">
+  **Extract tables from any SQL database using SQLAlchemy**
+
+  The SQL database source loads data from any SQLAlchemy-supported database. Features include:
+
+  - Support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and more
+  - Multiple backends: SQLAlchemy, PyArrow, Pandas, ConnectorX
+  - Incremental loading based on timestamp or auto-incrementing columns
+  - Schema reflection with configurable detail levels
+  - Custom query adapters for filtering and transformations
+  - Column selection and exclusion
+
+  <CodeGroup>
+  ```python Quick Example
+  from dlt.sources.sql_database import sql_database
+
+  source = sql_database(
+      credentials="postgresql://user:pass@localhost/db",
+      table_names=["customers", "orders"],
+      backend="pyarrow",
+  )
+
+  pipeline.run(source)
+  ```
+
+  ```python Incremental Loading
+  from dlt.sources.sql_database import sql_table
+
+  orders = sql_table(
+      credentials="postgresql://user:pass@localhost/db",
+      table="orders",
+      incremental=dlt.sources.incremental(
+          "updated_at",
+          initial_value="2024-01-01T00:00:00Z"
+      ),
+  )
+
+  pipeline.run(orders)
+  ```
+  </CodeGroup>
+
+  **Use cases:** Database replication, data warehousing, analytics, migrations
+</Card>
+
+### Filesystem
+
+<Card title="Filesystem Source" icon="folder" href="/sources/filesystem">
+  **Read files from cloud storage and local filesystems**
+
+  The filesystem source reads files from various storage locations with built-in support for common formats:
+
+  - Cloud storage: AWS S3, Google Cloud Storage, Azure Blob Storage
+  - Remote: SFTP, Google Drive
+  - Local filesystem
+  - Built-in readers for CSV, Parquet, JSONL
+  - DuckDB-accelerated CSV reading
+  - Custom file processing support
+  - Incremental loading based on modification date
+
+  <CodeGroup>
+  ```python CSV from S3
+  from dlt.sources.filesystem import readers
+
+  csv_data = readers(
+      bucket_url="s3://my-bucket/data/",
+      file_glob="**/*.csv",
+  ).read_csv(chunksize=10000)
+
+  pipeline.run(csv_data)
+  ```
+
+  ```python Parquet from GCS
+  from dlt.sources.filesystem import readers
+
+  parquet_data = readers(
+      bucket_url="gs://my-bucket/data/",
+      file_glob="**/*.parquet",
+  ).read_parquet(chunksize=50000)
+
+  pipeline.run(parquet_data)
+  ```
+
+  ```python JSONL from Azure
+  from dlt.sources.filesystem import readers
+
+  jsonl_data = readers(
+      bucket_url="az://my-container/data/",
+      file_glob="**/*.jsonl",
+  ).read_jsonl(chunksize=10000)
+
+  pipeline.run(jsonl_data)
+  ```
+  </CodeGroup>
+
+  **Use cases:** Data lakes, batch processing, file-based ETL, log ingestion
+</Card>
+
+## Helper Modules
+
+In addition to complete sources, dlt provides helper modules for building custom sources:
+
+### REST Client
+
+<Card title="REST Client Helper" icon="code">
+  **Low-level REST client for custom API integrations**
+
+  The REST client helper provides building blocks for creating custom API sources:
+
+  ```python
+  from dlt.sources.helpers.rest_client import RESTClient, paginate
+  from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+  from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+
+  @dlt.resource
+  def my_api_resource():
+      client = RESTClient(
+          base_url="https://api.example.com",
+          auth=BearerTokenAuth(token=dlt.secrets["api_token"]),
+      )
+
+      for page in client.paginate(
+          "/data",
+          paginator=JSONResponsePaginator(next_url_path="next_page"),
+      ):
+          yield page
+  ```
+
+  **Available auth methods:**
+  - `BearerTokenAuth` - Bearer token authentication
+  - `APIKeyAuth` - API key in header or query parameter
+  - `HttpBasicAuth` - HTTP Basic authentication
+  - `OAuth2ClientCredentials` - OAuth 2.0 client credentials flow
+
+  **Available paginators:**
+  - `JSONResponsePaginator` - Follow JSON links
+  - `HeaderLinkPaginator` - Follow Link headers
+  - `OffsetPaginator` - Offset-based pagination
+  - `PageNumberPaginator` - Page number pagination
+</Card>
+
+### Requests Session
+
+<Card title="Requests Helper" icon="globe">
+  **Enhanced requests session with automatic retries**
+
+  Use the requests helper for HTTP requests with built-in retry logic:
+
+  ```python
+  from dlt.sources.helpers import requests
+
+  @dlt.resource
+  def fetch_data():
+      # Automatically retries on connection errors and 5xx responses
+      response = requests.get("https://api.example.com/data")
+      response.raise_for_status()
+      yield response.json()
+  ```
+
+  The helper automatically handles:
+  - Connection errors with exponential backoff
+  - 5xx server errors
+  - Network timeouts
+  - DNS resolution failures
+</Card>
+
+## Comparing Sources
+
+<AccordionGroup>
+  <Accordion title="When to use REST API source">
+    Use the REST API source when:
+
+    - Loading data from REST APIs
+    - You need automatic pagination
+    - The API requires authentication
+    - You want incremental loading
+    - You prefer declarative configuration over code
+
+    **Don't use when:**
+    - The API has complex, custom logic that doesn't fit the declarative model
+    - You need fine-grained control over requests
+    - The API uses GraphQL or other non-REST protocols
+  </Accordion>
+
+  <Accordion title="When to use SQL Database source">
+    Use the SQL Database source when:
+
+    - Replicating database tables
+    - Building a data warehouse
+    - The source is any SQL database
+    - You need incremental loading based on timestamps
+    - You want to leverage different backends for performance
+
+    **Don't use when:**
+    - You need complex transformations (do them after loading)
+    - The database doesn't have a SQLAlchemy driver
+    - You're loading from NoSQL databases
+  </Accordion>
+
+  <Accordion title="When to use Filesystem source">
+    Use the Filesystem source when:
+
+    - Loading files from cloud storage or local filesystem
+    - Working with CSV, Parquet, or JSONL files
+    - Processing data lakes or batch file drops
+    - Files are added incrementally
+
+    **Don't use when:**
+    - Files are in proprietary or complex formats requiring custom parsing
+    - You need real-time streaming (use custom source instead)
+  </Accordion>
+
+  <Accordion title="When to build a custom source">
+    Build a custom source when:
+
+    - Built-in sources don't fit your use case
+    - You need custom business logic or transformations
+    - The data origin has unique authentication or protocols
+    - You want to package and reuse your source across projects
+
+    See [Custom Sources](/sources/custom-sources) for guidance.
+  </Accordion>
+</AccordionGroup>
+
+## Verified Sources
+
+In addition to the built-in sources, dlt maintains a collection of **verified sources** for popular SaaS platforms and services. These are community-maintained sources that can be installed via `dlt init`.
+
+Examples include:
+- **GitHub** - Issues, pull requests, repositories
+- **Google Analytics** - Website analytics data
+- **Stripe** - Payment and subscription data
+- **Salesforce** - CRM data
+- **MongoDB** - NoSQL database
+- **Notion** - Workspace data
+- **Slack** - Messages and channel data
+
+To use a verified source:
+
+```bash
+# Initialize a verified source
+dlt init github duckdb
+
+# This creates a GitHub source in your project
+# with all necessary configuration
+```
+
+<Note>
+Verified sources are maintained separately from the core dlt library. Check the [dlt Hub](https://dlthub.com/docs/dlt-ecosystem/verified-sources) for the complete list.
+</Note>
+
+## Source Selection Guide
+
+<Steps>
+  <Step title="Identify your data origin">
+    Determine where your data comes from:
+    - REST API → Use [REST API Source](/sources/rest-api)
+    - SQL Database → Use [SQL Database Source](/sources/sql-database)
+    - Files in storage → Use [Filesystem Source](/sources/filesystem)
+    - Other → Build a [Custom Source](/sources/custom-sources)
+  </Step>
+
+  <Step title="Check verified sources">
+    If loading from a popular SaaS platform, check if a verified source exists:
+
+    ```bash
+    dlt init <source-name> <destination>
+    ```
+  </Step>
+
+  <Step title="Evaluate complexity">
+    Consider the complexity of your requirements:
+    - Simple, standard patterns → Use built-in sources
+    - Complex business logic → Build custom source
+    - Moderate complexity → Start with built-in, extend with transformers
+  </Step>
+
+  <Step title="Consider maintenance">
+    Think about long-term maintenance:
+    - Built-in sources are maintained by dlt team
+    - Verified sources are community-maintained
+    - Custom sources require your maintenance
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="REST API Source" icon="server" href="/sources/rest-api">
+    Load data from REST APIs with automatic pagination
+  </Card>
+  <Card title="SQL Database Source" icon="database" href="/sources/sql-database">
+    Extract tables from SQL databases
+  </Card>
+  <Card title="Filesystem Source" icon="folder" href="/sources/filesystem">
+    Read files from cloud storage
+  </Card>
+  <Card title="Custom Sources" icon="code" href="/sources/custom-sources">
+    Build your own sources from scratch
+  </Card>
+</CardGroup>

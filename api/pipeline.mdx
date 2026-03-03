@@ -1,0 +1,170 @@
+---
+title: 'pipeline'
+description: 'Create or retrieve a dlt pipeline instance for data loading'
+---
+
+## Function Signature
+
+```python
+def pipeline(
+    pipeline_name: str = None,
+    pipelines_dir: str = None,
+    pipeline_salt: TSecretStrValue = None,
+    destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
+    dataset_name: str = None,
+    import_schema_path: str = None,
+    export_schema_path: str = None,
+    full_refresh: bool = None,
+    dev_mode: bool = False,
+    refresh: TRefreshMode = None,
+    progress: TCollectorArg = _NULL_COLLECTOR,
+    _impl_cls: Type[TPipeline] = Pipeline,
+) -> TPipeline
+```
+
+## Description
+
+Creates a new instance of `dlt` pipeline, which moves data from a source (e.g., REST API) to a destination (e.g., database or data lake). When called without arguments, returns the most recently created pipeline instance.
+
+The `pipeline` function allows you to configure the destination, dataset name, and various options that govern data loading. The created `Pipeline` object lets you load data from any source with the `run` method or use more granular control with `extract`, `normalize`, and `load` methods.
+
+## Parameters
+
+<ParamField path="pipeline_name" type="str" default="None">
+  A name of the pipeline used to identify it in monitoring events and to restore its state and data schemas on subsequent runs. Defaults to the file name of the pipeline script with `dlt_` prefix added.
+</ParamField>
+
+<ParamField path="pipelines_dir" type="str" default="None">
+  A working directory where pipeline state and temporary files will be stored. Defaults to user home directory: `~/dlt/pipelines/`.
+</ParamField>
+
+<ParamField path="pipeline_salt" type="TSecretStrValue" default="None">
+  A random value used for deterministic hashing during data anonymization. Defaults to a value derived from the pipeline name. The default value should not be used for cryptographic purposes.
+</ParamField>
+
+<ParamField path="destination" type="TDestinationReferenceArg" default="None">
+  A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`. Can be a string (destination name), a Destination instance, a callable returning a Destination, or None. May also be provided to the `run` method of the pipeline.
+</ParamField>
+
+<ParamField path="staging" type="TDestinationReferenceArg" default="None">
+  A name of the destination where dlt will stage the data before final loading, or a destination module imported from `dlt.destination`. May also be provided to the `run` method of the pipeline.
+</ParamField>
+
+<ParamField path="dataset_name" type="str" default="None">
+  A name of the dataset to which the data will be loaded. A dataset is a logical group of tables (e.g., `schema` in relational databases or folder grouping many files). May also be provided later to the `run` or `load` methods of the Pipeline. If not provided at all, defaults to the `pipeline_name`.
+</ParamField>
+
+<ParamField path="import_schema_path" type="str" default="None">
+  A path from which the schema `yaml` file will be imported on each pipeline run. Defaults to None which disables importing.
+</ParamField>
+
+<ParamField path="export_schema_path" type="str" default="None">
+  A path where the schema `yaml` file will be exported after every schema change. Defaults to None which disables exporting.
+</ParamField>
+
+<ParamField path="full_refresh" type="bool" default="None">
+  **Deprecated**: Use `dev_mode` instead.
+</ParamField>
+
+<ParamField path="dev_mode" type="bool" default="False">
+  When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset. The datasets are identified by `dataset_name_` + datetime suffix. Use this setting when experimenting with your data to ensure you start fresh on each run.
+</ParamField>
+
+<ParamField path="refresh" type="TRefreshMode" default="None">
+  Fully or partially reset sources during pipeline run. When set here, the refresh is applied on each run of the pipeline. To apply refresh only once, you can pass it to `pipeline.run` or `extract` instead.
+  
+  The following refresh modes are supported:
+  - `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods. (Note: schema history is erased)
+  - `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+  - `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+</ParamField>
+
+<ParamField path="progress" type="TCollectorArg" default="_NULL_COLLECTOR">
+  A progress monitor that shows progress bars, console or log messages with current information on sources, resources, data items, etc. processed in `extract`, `normalize`, and `load` stages. Pass a string with a collector name or configure your own by choosing from the `dlt.progress` module.
+  
+  Supported progress libraries: `tqdm`, `enlighten`, `alive_progress`, or `log` to write to console/log.
+</ParamField>
+
+<ParamField path="_impl_cls" type="Type[TPipeline]" default="Pipeline">
+  A class of the pipeline to use. Defaults to `Pipeline`. This parameter is intended for advanced use cases.
+</ParamField>
+
+## Returns
+
+<ResponseField name="pipeline" type="TPipeline">
+  An instance of the `Pipeline` class or a subclass. Use the `run` method to load data, or use `extract`, `normalize`, and `load` methods for more granular control.
+</ResponseField>
+
+## Examples
+
+### Create a new pipeline
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+```
+
+### Retrieve the current pipeline
+
+```python
+import dlt
+
+# Get the most recently created pipeline instance
+pipeline = dlt.pipeline()
+```
+
+### Create a pipeline with staging
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="data_pipeline",
+    destination="bigquery",
+    staging="filesystem",  # Stage data in filesystem before loading to BigQuery
+    dataset_name="production_data"
+)
+```
+
+### Create a pipeline in development mode
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="test_pipeline",
+    destination="postgres",
+    dataset_name="test_data",
+    dev_mode=True  # Each run creates a new timestamped dataset
+)
+```
+
+### Create a pipeline with progress monitoring
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="monitored_pipeline",
+    destination="snowflake",
+    dataset_name="analytics",
+    progress="tqdm"  # Show progress bars using tqdm
+)
+```
+
+## Related Documentation
+
+- [Write your first pipeline walkthrough](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
+- [Pipeline architecture and data loading steps](https://dlthub.com/docs/reference)
+- [List of supported destinations](https://dlthub.com/docs/dlt-ecosystem/destinations)
+
+## See Also
+
+- [run](/api/run) - Load data using the pipeline
+- [attach](/api/attach) - Attach to an existing pipeline working folder

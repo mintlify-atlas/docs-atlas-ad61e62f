@@ -1,0 +1,473 @@
+---
+title: Databricks
+description: Load data into Databricks Delta Lake with dlt
+---
+
+# Databricks
+
+Databricks is a unified analytics platform built on Apache Spark that provides data warehousing, data lake, data engineering, and machine learning capabilities. dlt loads data into Databricks using Delta Lake or Apache Iceberg table formats.
+
+## Install dlt with Databricks
+
+To use Databricks as a destination, install dlt with the Databricks extra:
+
+```bash
+pip install "dlt[databricks]"
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+import dlt
+
+# Define your data source
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Create pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="databricks",
+    dataset_name="my_dataset"
+)
+
+# Run the pipeline
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+### Basic Configuration
+
+<ParamField path="server_hostname" type="string" required>
+  The Databricks workspace hostname (e.g., `adb-1234567890123456.7.azuredatabricks.net`)
+</ParamField>
+
+<ParamField path="http_path" type="string" required>
+  The HTTP path to the SQL warehouse or cluster (e.g., `/sql/1.0/warehouses/abc123def456`)
+</ParamField>
+
+<ParamField path="catalog" type="string" required>
+  The Unity Catalog name where data will be loaded
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="staging_credentials_name" type="string">
+  Name of credentials to use in COPY command if set
+</ParamField>
+
+<ParamField path="is_staging_external_location" type="bool" default="false">
+  If true, temporary credentials are not propagated to the COPY command
+</ParamField>
+
+<ParamField path="staging_volume_name" type="string">
+  Name of the Databricks managed volume for temporary storage (format: `catalog.schema.volume`)
+</ParamField>
+
+<ParamField path="keep_staged_files" type="bool" default="true">
+  Whether to keep staged files in the volume after loading
+</ParamField>
+
+<ParamField path="create_indexes" type="bool" default="false">
+  Whether PRIMARY KEY or FOREIGN KEY constraints should be created
+</ParamField>
+
+## Authentication
+
+### Access Token (Recommended)
+
+Create a `.dlt/secrets.toml` file with your access token:
+
+```toml
+[destination.databricks.credentials]
+server_hostname = "adb-1234567890123456.7.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/abc123def456"
+catalog = "my_catalog"
+access_token = "dapi1234567890ab1cde2f3ab456c7d89efa"
+```
+
+<Steps>
+  <Step title="Create a Databricks Workspace">
+    Set up a Databricks workspace in your cloud provider (AWS, Azure, or GCP).
+  </Step>
+
+  <Step title="Create a Unity Catalog">
+    Navigate to Data > Catalog and create a new Unity Catalog metastore.
+  </Step>
+
+  <Step title="Create a SQL Warehouse">
+    Go to SQL Warehouses and create a new warehouse for running queries.
+  </Step>
+
+  <Step title="Generate Access Token">
+    Click your profile > User Settings > Access Tokens > Generate New Token.
+  </Step>
+
+  <Step title="Configure dlt">
+    Copy the token and connection details to your `secrets.toml` file.
+  </Step>
+</Steps>
+
+### OAuth (Service Principal)
+
+Use OAuth with client credentials:
+
+```toml
+[destination.databricks.credentials]
+server_hostname = "adb-1234567890123456.7.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/abc123def456"
+catalog = "my_catalog"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+```
+
+### Databricks Notebook Authentication
+
+When running inside a Databricks notebook, dlt can automatically detect credentials:
+
+```python
+import dlt
+
+# No credentials needed - uses notebook context
+pipeline = dlt.pipeline(
+    destination="databricks",
+    dataset_name="my_dataset"
+)
+```
+
+You only need to specify the catalog:
+
+```toml
+[destination.databricks.credentials]
+catalog = "my_catalog"
+```
+
+## Data Loading
+
+Databricks uses cloud storage (S3, Azure Blob, GCS) for staging data before loading into Delta tables.
+
+### Staging Support
+
+Databricks requires a staging location:
+
+<CodeGroup>
+```python Azure Blob Storage
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+```
+
+```python AWS S3
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+```
+</CodeGroup>
+
+Configure staging credentials:
+
+```toml
+# For Azure
+[destination.filesystem]
+bucket_url = "az://my-container/staging"
+
+[destination.filesystem.credentials]
+azure_storage_account_name = "mystorageaccount"
+azure_storage_account_key = "your-account-key"
+
+# For AWS
+[destination.filesystem]
+bucket_url = "s3://my-bucket/staging"
+
+[destination.filesystem.credentials]
+aws_access_key_id = "your-access-key"
+aws_secret_access_key = "your-secret-key"
+```
+
+### Databricks Managed Volumes
+
+Use Databricks managed volumes for staging:
+
+```python
+import dlt
+from dlt.destinations import databricks
+
+pipeline = dlt.pipeline(
+    destination=databricks(
+        staging_volume_name="my_catalog.my_schema.my_volume"
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### Supported File Formats
+
+Databricks works best with Parquet format:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+## Write Dispositions
+
+Databricks supports all write dispositions:
+
+<CodeGroup>
+```python Append
+@dlt.resource(write_disposition="append")
+def append_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Replace
+@dlt.resource(write_disposition="replace")
+def replace_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Merge
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id"
+)
+def merge_data():
+    yield {"id": 1, "value": "updated"}
+```
+</CodeGroup>
+
+## Table Formats
+
+### Delta Lake (Default)
+
+By default, dlt creates Delta Lake tables:
+
+```python
+import dlt
+
+@dlt.resource
+def delta_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(delta_data())
+```
+
+### Apache Iceberg
+
+Use Apache Iceberg table format:
+
+```python
+import dlt
+
+@dlt.resource(table_format="iceberg")
+def iceberg_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(iceberg_data())
+```
+
+## Data Types
+
+Databricks data type mapping:
+
+| dlt Type | Databricks Type |
+|----------|----------------|
+| text | STRING |
+| double | DOUBLE |
+| bool | BOOLEAN |
+| timestamp | TIMESTAMP |
+| date | DATE |
+| time | STRING |
+| bigint | BIGINT |
+| binary | BINARY |
+| decimal | DECIMAL |
+| json | STRING |
+
+## Advanced Features
+
+### External Locations
+
+Use Databricks external locations:
+
+```python
+import dlt
+from dlt.destinations import databricks
+
+pipeline = dlt.pipeline(
+    destination=databricks(
+        is_staging_external_location=True,
+        staging_credentials_name="my_external_location"
+    ),
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+```
+
+### Connection Parameters
+
+Customize connection parameters:
+
+```toml
+[destination.databricks.credentials]
+server_hostname = "adb-1234567890123456.7.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/abc123def456"
+catalog = "my_catalog"
+access_token = "dapi..."
+socket_timeout = 300
+
+[destination.databricks.credentials.connection_parameters]
+_tls_verify_hostname = false
+
+[destination.databricks.credentials.session_configuration]
+spark.sql.ansi.enabled = true
+```
+
+## Running in Databricks Notebooks
+
+When running dlt in Databricks notebooks:
+
+```python
+import dlt
+
+# dlt automatically uses notebook credentials
+pipeline = dlt.pipeline(
+    destination="databricks",
+    dataset_name="my_dataset"
+)
+
+@dlt.resource
+def notebook_data():
+    yield {"id": 1, "value": "from notebook"}
+
+info = pipeline.run(notebook_data())
+print(info)
+```
+
+Query the loaded data:
+
+```python
+# Query using SQL
+result = spark.sql("""
+    SELECT * FROM my_catalog.my_dataset.notebook_data
+""").show()
+```
+
+## Schema Evolution
+
+Delta Lake supports automatic schema evolution:
+
+```python
+import dlt
+
+@dlt.resource
+def evolving_data():
+    # First load
+    yield {"id": 1, "name": "Alice"}
+    
+@dlt.resource
+def evolving_data_v2():
+    # Second load with new column
+    yield {"id": 2, "name": "Bob", "age": 30}
+
+pipeline = dlt.pipeline(
+    destination="databricks",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(evolving_data())
+pipeline.run(evolving_data_v2())  # Schema evolves automatically
+```
+
+## Time Travel
+
+Delta Lake supports time travel queries:
+
+```sql
+-- Query historical versions
+SELECT * FROM my_catalog.my_dataset.my_table VERSION AS OF 1;
+
+-- Query by timestamp
+SELECT * FROM my_catalog.my_dataset.my_table TIMESTAMP AS OF '2024-01-01';
+
+-- Show table history
+DESCRIBE HISTORY my_catalog.my_dataset.my_table;
+```
+
+## Performance Optimization
+
+### Optimize Tables
+
+Optimize Delta tables for better query performance:
+
+```sql
+-- Optimize table
+OPTIMIZE my_catalog.my_dataset.my_table;
+
+-- Z-order by columns
+OPTIMIZE my_catalog.my_dataset.my_table
+ZORDER BY (user_id, date);
+```
+
+### Vacuum Old Files
+
+Remove old file versions:
+
+```sql
+-- Clean up old files (older than 7 days)
+VACUUM my_catalog.my_dataset.my_table RETAIN 168 HOURS;
+```
+
+## Use Cases
+
+Databricks is ideal for:
+
+- **Lakehouse Architecture**: Combine data lake and warehouse capabilities
+- **Large-scale Analytics**: Process petabyte-scale data
+- **Machine Learning**: Integrate with MLflow and Spark ML
+- **Real-time Processing**: Stream data with Delta Live Tables
+- **Data Science**: Use notebooks for exploration and analysis
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Databricks Docs" icon="cloud" href="https://docs.databricks.com/">
+    Official Databricks documentation
+  </Card>
+  <Card title="Delta Lake" icon="triangle" href="https://delta.io/">
+    Learn about Delta Lake format
+  </Card>
+</CardGroup>

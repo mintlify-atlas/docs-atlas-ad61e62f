@@ -1,0 +1,104 @@
+---
+title: CLI Overview
+description: Command-line interface for dlt pipelines
+---
+
+The `dlt` command-line interface provides tools for creating, managing, inspecting, and deploying data pipelines. All commands are accessed through the `dlt` executable installed with the dlt Python package.
+
+## Installation
+
+The CLI is installed automatically when you install dlt:
+
+```bash
+pip install dlt
+```
+
+For deployment commands, install the CLI extras:
+
+```bash
+pip install "dlt[cli]"
+```
+
+## Global Options
+
+These options are available for all dlt commands:
+
+| Option | Description |
+|--------|-------------|
+| `--version` | Display the installed dlt version |
+| `--disable-telemetry` | Disable telemetry before command execution |
+| `--enable-telemetry` | Enable telemetry before command execution |
+| `--non-interactive` | Run in non-interactive mode with default choices for all prompts |
+| `--debug` | Display full stack traces on exceptions for debugging |
+| `--no-pwd` | Do not add current working directory to sys.path |
+
+## Available Commands
+
+### Core Commands
+
+<CardGroup cols={2}>
+  <Card title="dlt init" icon="rocket" href="/cli/init">
+    Initialize a new pipeline from a source and destination
+  </Card>
+  <Card title="dlt pipeline" icon="diagram-project" href="/cli/pipeline">
+    Inspect and manage local pipeline working directories
+  </Card>
+  <Card title="dlt deploy" icon="cloud-arrow-up" href="/cli/deploy">
+    Deploy pipelines to GitHub Actions or Airflow
+  </Card>
+</CardGroup>
+
+### Additional Commands
+
+- **`dlt schema`** - Load, validate, and display schema files
+- **`dlt dashboard`** - Launch the interactive workspace dashboard
+- **`dlt telemetry`** - View and manage telemetry settings
+- **`dlt workspace`** - Manage workspace configuration and data
+- **`dlt profile`** - Manage workspace profiles
+- **`dlt ai`** - Configure AI-powered development tools
+
+## Quick Start
+
+Create a new pipeline from a verified source:
+
+```bash
+# List available sources
+dlt init --list-sources
+
+# Initialize a pipeline
+dlt init github bigquery
+
+# List local pipelines
+dlt pipeline --list-pipelines
+
+# Inspect pipeline state
+dlt pipeline my_pipeline info
+```
+
+## Getting Help
+
+Get help for any command:
+
+```bash
+# General help
+dlt --help
+
+# Command-specific help
+dlt init --help
+dlt pipeline --help
+```
+
+## Exit Codes
+
+The CLI uses standard exit codes:
+
+- `0` - Success
+- `-1` - General error
+- `-2` - Git-related error or pipeline restore failure
+- `-3` - Pipeline not run locally (deploy command)
+- `-4` - Git repository not found (deploy command)
+- `-5` - Pipeline script not found (deploy command)
+
+## Environment
+
+The CLI respects virtual environments and will warn if dlt is installed globally while a virtual environment is activated.

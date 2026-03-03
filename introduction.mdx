@@ -1,0 +1,174 @@
+---
+title: Introduction to dlt
+description: The open-source Python library that automates data loading tasks
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="dlt Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="dlt Hero Dark"
+/>
+
+## What is dlt?
+
+**dlt** (data load tool) is an open-source Python library that automates all your tedious data loading tasks. It's designed to be lightweight, flexible, and work anywhere Python runs—from Google Colab notebooks to AWS Lambda functions, Airflow DAGs, your local laptop, or GPT-4 assisted development playgrounds.
+
+<Note>
+  dlt is a library, not a platform. It respects your existing workflows and integrates seamlessly with other libraries you already use.
+</Note>
+
+## Why dlt?
+
+dlt eliminates the complexity of building and maintaining data pipelines by providing:
+
+- **Automatic schema inference** - dlt infers schemas and data types from your data
+- **Nested data handling** - Automatically normalizes complex, nested data structures
+- **Incremental loading** - Load only new or changed data with built-in state management
+- **Multiple destinations** - Support for 20+ popular databases, data warehouses, and vector stores
+- **Python-first design** - Clean, Pythonic interfaces that feel natural
+- **No backend required** - Everything runs in your Python environment
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Extract from Anywhere" icon="download">
+    Load data from REST APIs, SQL databases, cloud storage, Python data structures, and 5000+ sources via the dlt Hub.
+  </Card>
+  <Card title="Schema Evolution" icon="diagram-project">
+    Schemas automatically evolve as your data changes. No more broken pipelines from unexpected fields.
+  </Card>
+  <Card title="Incremental Loading" icon="clock-rotate-left">
+    Efficiently load only new or changed data with automatic state tracking and cursor management.
+  </Card>
+  <Card title="Multiple Destinations" icon="database">
+    Load to DuckDB, PostgreSQL, BigQuery, Snowflake, Redshift, and many more with the same code.
+  </Card>
+  <Card title="Data Quality" icon="shield-check">
+    Built-in data validation, contracts, and type checking ensure data quality.
+  </Card>
+  <Card title="Deploy Anywhere" icon="rocket">
+    Run on Airflow, serverless functions, notebooks, or any Python environment.
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+Here's how simple it is to load data with dlt:
+
+```python
+import dlt
+from dlt.sources.helpers import requests
+
+# Create a pipeline that loads to DuckDB
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='duckdb',
+    dataset_name='player_data'
+)
+
+# Fetch data from an API
+data = []
+for player in ['magnuscarlsen', 'rpragchess']:
+    response = requests.get(f'https://api.chess.com/pub/player/{player}')
+    response.raise_for_status()
+    data.append(response.json())
+
+# Extract, normalize, and load the data
+pipeline.run(data, table_name='player')
+```
+
+That's it! dlt handles schema inference, normalization, and loading automatically.
+
+## How dlt Works
+
+dlt operates in three main stages:
+
+<Steps>
+  <Step title="Extract">
+    Pull data from sources using Python generators, functions, or iterators. dlt handles pagination, rate limiting, and state management.
+  </Step>
+  <Step title="Normalize">
+    Transform nested structures into relational tables, infer schemas, and apply data types automatically.
+  </Step>
+  <Step title="Load">
+    Write data to your destination efficiently with automatic retries, transaction management, and performance optimization.
+  </Step>
+</Steps>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Pipelines" icon="pipe" href="/core-concepts#pipelines">
+    A pipeline moves data from source to destination, managing state and configuration.
+  </Card>
+  <Card title="Sources" icon="code" href="/core-concepts#sources">
+    Decorated Python functions that define where and how to extract data.
+  </Card>
+  <Card title="Resources" icon="table" href="/core-concepts#resources">
+    Individual data endpoints within a source that yield data items.
+  </Card>
+  <Card title="Destinations" icon="server" href="/core-concepts#destinations">
+    Where your data gets loaded—databases, warehouses, or file systems.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+dlt is perfect for:
+
+- **API Integration** - Quickly build pipelines to load data from REST APIs
+- **Database Replication** - Sync data between databases with incremental loading
+- **Data Warehousing** - Build ELT pipelines to populate your data warehouse
+- **LLM Applications** - Prepare and load data for RAG systems and vector databases
+- **Analytics** - Load data for analysis in notebooks or dashboards
+- **ETL Automation** - Replace complex, brittle ETL scripts with maintainable code
+
+## Design Philosophy
+
+<Warning>
+  dlt follows strict principles: no black boxes, clean Pythonic interfaces, human-readable file formats, no side effects, and comprehensive documentation. We do more work in the library so you do less in your code.
+</Warning>
+
+dlt is built with these principles:
+
+- **Multiply, don't add** - We automate repetitive tasks so you focus on your data logic
+- **No black boxes** - Everything is transparent, inspectable, and understandable
+- **Pythonic** - APIs feel natural to Python developers
+- **LLM-native** - Designed to work seamlessly with AI-assisted development
+
+## Getting Started
+
+Ready to build your first pipeline? Check out the [Quickstart Guide](/quickstart) to get up and running in minutes.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Build your first pipeline in 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install dlt and optional dependencies
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Understand pipelines, sources, and resources
+  </Card>
+  <Card title="Examples" icon="code" href="https://dlthub.com/docs/examples">
+    Browse real-world examples and tutorials
+  </Card>
+</CardGroup>
+
+## Community and Support
+
+dlt has a thriving community of developers building the future of data loading together.
+
+- **Slack Community** - Join thousands of users and get help from the community
+- **GitHub** - Report issues, suggest features, or contribute code
+- **Documentation** - Comprehensive guides and API references
+- **Examples** - Real-world code examples for common use cases
+
+<Note>
+  dlt is production-ready and used by thousands of engineers worldwide. It's maintained by dltHub Inc. and actively developed with frequent releases.
+</Note>

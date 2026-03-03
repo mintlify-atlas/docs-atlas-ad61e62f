@@ -1,0 +1,331 @@
+---
+title: Destinations
+description: Available destination connectors in dlt
+---
+
+Destinations are the data warehouses, databases, and storage systems where dlt loads your data. Each destination provides a factory function that returns a configured destination instance.
+
+## Available Destinations
+
+dlt supports the following destinations out of the box:
+
+### SQL Databases
+
+#### PostgreSQL
+```python
+from dlt.destinations import postgres
+
+pipeline = dlt.pipeline(
+    destination=postgres()
+)
+```
+
+#### BigQuery
+```python
+from dlt.destinations import bigquery
+
+pipeline = dlt.pipeline(
+    destination=bigquery()
+)
+```
+
+#### Snowflake
+```python
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake()
+)
+```
+
+#### Redshift
+```python
+from dlt.destinations import redshift
+
+pipeline = dlt.pipeline(
+    destination=redshift()
+)
+```
+
+#### DuckDB
+```python
+from dlt.destinations import duckdb
+
+pipeline = dlt.pipeline(
+    destination=duckdb(database="local.duckdb")
+)
+```
+
+#### MotherDuck
+```python
+from dlt.destinations import motherduck
+
+pipeline = dlt.pipeline(
+    destination=motherduck()
+)
+```
+
+#### MS SQL Server
+```python
+from dlt.destinations import mssql
+
+pipeline = dlt.pipeline(
+    destination=mssql()
+)
+```
+
+#### Azure Synapse
+```python
+from dlt.destinations import synapse
+
+pipeline = dlt.pipeline(
+    destination=synapse()
+)
+```
+
+#### Databricks
+```python
+from dlt.destinations import databricks
+
+pipeline = dlt.pipeline(
+    destination=databricks()
+)
+```
+
+#### Clickhouse
+```python
+from dlt.destinations import clickhouse
+
+pipeline = dlt.pipeline(
+    destination=clickhouse()
+)
+```
+
+#### Dremio
+```python
+from dlt.destinations import dremio
+
+pipeline = dlt.pipeline(
+    destination=dremio()
+)
+```
+
+#### SQLAlchemy (Generic)
+```python
+from dlt.destinations import sqlalchemy
+
+pipeline = dlt.pipeline(
+    destination=sqlalchemy()
+)
+```
+
+### Data Lakes & File Systems
+
+#### Filesystem
+```python
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem(bucket_url="s3://my-bucket")
+)
+```
+
+Supports:
+- Local filesystem
+- AWS S3
+- Google Cloud Storage (GCS)
+- Azure Blob Storage
+- SFTP
+
+#### Microsoft Fabric
+```python
+from dlt.destinations import fabric
+
+pipeline = dlt.pipeline(
+    destination=fabric()
+)
+```
+
+#### Amazon Athena
+```python
+from dlt.destinations import athena
+
+pipeline = dlt.pipeline(
+    destination=athena()
+)
+```
+
+#### DuckLake
+```python
+from dlt.destinations import ducklake
+
+pipeline = dlt.pipeline(
+    destination=ducklake()
+)
+```
+
+### Vector Databases
+
+#### Qdrant
+```python
+from dlt.destinations import qdrant
+
+pipeline = dlt.pipeline(
+    destination=qdrant()
+)
+```
+
+#### Weaviate
+```python
+from dlt.destinations import weaviate
+
+pipeline = dlt.pipeline(
+    destination=weaviate()
+)
+```
+
+#### LanceDB
+```python
+from dlt.destinations import lancedb
+
+pipeline = dlt.pipeline(
+    destination=lancedb()
+)
+```
+
+### Special Purpose
+
+#### Dummy (Testing)
+```python
+from dlt.destinations import dummy
+
+pipeline = dlt.pipeline(
+    destination=dummy()  # For testing, discards all data
+)
+```
+
+#### Custom Destination
+```python
+from dlt.destinations import destination
+
+# Create custom destination from callable
+@destination(batch_size=1000)
+def my_destination(items, table):
+    # Process items
+    for item in items:
+        print(item)
+
+pipeline = dlt.pipeline(
+    destination=my_destination
+)
+```
+
+## Using Destinations
+
+### Simple Usage
+
+Pass destination name as a string:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset"
+)
+```
+
+### With Configuration
+
+Pass a destination factory with configuration:
+
+```python
+from dlt.destinations import postgres
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=postgres(
+        credentials="postgresql://user:pass@localhost/db"
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### From Configuration Files
+
+Credentials are typically stored in `.dlt/secrets.toml`:
+
+```toml
+[destination.postgres.credentials]
+database = "mydb"
+username = "user"
+password = "password"
+host = "localhost"
+port = 5432
+```
+
+Then use:
+
+```python
+pipeline = dlt.pipeline(
+    destination="postgres",  # Credentials loaded from secrets.toml
+    dataset_name="my_dataset"
+)
+```
+
+### Environment Variables
+
+Credentials can also be provided via environment variables:
+
+```bash
+export DESTINATION__POSTGRES__CREDENTIALS__DATABASE="mydb"
+export DESTINATION__POSTGRES__CREDENTIALS__PASSWORD="password"
+```
+
+## Destination Capabilities
+
+Different destinations support different features:
+
+| Destination | Merge | Replace | Append | Schema Evolution | File Formats |
+|------------|-------|---------|--------|------------------|-------------|
+| PostgreSQL | ✓ | ✓ | ✓ | ✓ | - |
+| BigQuery | ✓ | ✓ | ✓ | ✓ | - |
+| Snowflake | ✓ | ✓ | ✓ | ✓ | - |
+| DuckDB | ✓ | ✓ | ✓ | ✓ | - |
+| Filesystem | - | ✓ | ✓ | - | parquet, jsonl, csv |
+| Athena | - | ✓ | ✓ | ✓ | parquet, csv |
+| Qdrant | - | - | ✓ | - | - |
+| Weaviate | - | - | ✓ | - | - |
+
+## Common Configuration
+
+All destinations support these common configuration options:
+
+```python
+destination(
+    credentials="...",  # Connection credentials
+    destination_name="custom_name",  # Override destination name
+    environment="production"  # Environment suffix for dataset
+)
+```
+
+## Write Dispositions
+
+Destinations support different write dispositions:
+
+- **append**: Add new data to existing tables
+- **replace**: Replace entire table with new data
+- **merge**: Update existing records and insert new ones (requires `primary_key`)
+
+```python
+@dlt.resource(write_disposition="merge", primary_key="id")
+def my_resource():
+    ...
+```
+
+## See Also
+
+- [Destinations documentation](https://dlthub.com/docs/dlt-ecosystem/destinations) - Detailed guides for each destination
+- [Credentials guide](https://dlthub.com/docs/general-usage/credentials) - How to configure destination credentials
+- [Write dispositions](https://dlthub.com/docs/general-usage/resource#write-disposition) - Loading strategies

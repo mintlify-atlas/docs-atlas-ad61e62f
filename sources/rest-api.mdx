@@ -1,0 +1,472 @@
+---
+title: REST API Source
+description: Load data from any REST API with automatic pagination, authentication, and incremental loading
+---
+
+# REST API Source
+
+The `rest_api` source provides a declarative way to load data from REST APIs. It handles common patterns like pagination, authentication, and incremental loading automatically.
+
+## Quick Start
+
+Load data from a REST API with minimal configuration:
+
+```python
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+# Create a source for the Pokemon API
+pokemon_source = rest_api_source({
+    "client": {
+        "base_url": "https://pokeapi.co/api/v2/",
+    },
+    "resources": [
+        {
+            "name": "pokemon",
+            "endpoint": {
+                "path": "pokemon",
+                "params": {
+                    "limit": 100,
+                },
+            },
+        },
+    ],
+})
+
+# Load the data
+pipeline = dlt.pipeline(
+    pipeline_name="pokemon_pipeline",
+    destination="duckdb",
+    dataset_name="pokemon_data"
+)
+
+load_info = pipeline.run(pokemon_source)
+print(load_info)
+```
+
+## Configuration Structure
+
+The REST API source uses a configuration dictionary with three main sections:
+
+<Steps>
+  <Step title="Client Configuration">
+    Define base URL, authentication, and default pagination:
+
+    ```python
+    "client": {
+        "base_url": "https://api.example.com/",
+        "auth": {
+            "type": "bearer",
+            "token": dlt.secrets["api_token"],
+        },
+        "paginator": "json_link",
+    }
+    ```
+  </Step>
+
+  <Step title="Resource Defaults">
+    Set common configurations for all resources:
+
+    ```python
+    "resource_defaults": {
+        "primary_key": "id",
+        "write_disposition": "merge",
+        "endpoint": {
+            "params": {
+                "per_page": 100,
+            },
+        },
+    }
+    ```
+  </Step>
+
+  <Step title="Resources">
+    Define individual API endpoints to load:
+
+    ```python
+    "resources": [
+        {
+            "name": "users",
+            "endpoint": {
+                "path": "users",
+            },
+        },
+    ]
+    ```
+  </Step>
+</Steps>
+
+## Authentication
+
+The REST API source supports multiple authentication methods:
+
+<Tabs>
+  <Tab title="Bearer Token">
+    ```python
+    "auth": {
+        "type": "bearer",
+        "token": dlt.secrets["github_token"],
+    }
+    ```
+  </Tab>
+
+  <Tab title="API Key">
+    ```python
+    "auth": {
+        "type": "api_key",
+        "api_key": dlt.secrets["api_key"],
+        "location": "header",  # or "query"
+        "name": "X-API-Key",
+    }
+    ```
+  </Tab>
+
+  <Tab title="HTTP Basic">
+    ```python
+    "auth": {
+        "type": "http_basic",
+        "username": dlt.secrets["username"],
+        "password": dlt.secrets["password"],
+    }
+    ```
+  </Tab>
+
+  <Tab title="OAuth 2.0 Client Credentials">
+    ```python
+    "auth": {
+        "type": "oauth2_client_credentials",
+        "client_id": dlt.secrets["client_id"],
+        "client_secret": dlt.secrets["client_secret"],
+        "token_url": "https://api.example.com/oauth/token",
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Pagination
+
+Automatic pagination is configured at the client or endpoint level:
+
+<CodeGroup>
+```python JSON Link Paginator
+# Follows 'next' links in JSON responses
+"paginator": "json_link"
+
+# Custom JSON path
+"paginator": {
+    "type": "json_link",
+    "next_url_path": "pagination.next",
+}
+```
+
+```python Offset Paginator
+# Increments offset parameter
+"paginator": {
+    "type": "offset",
+    "limit": 100,
+    "offset_param": "offset",
+    "limit_param": "limit",
+}
+```
+
+```python Page Number Paginator
+# Increments page number
+"paginator": {
+    "type": "page_number",
+    "page_param": "page",
+    "page_size": 50,
+}
+```
+
+```python Header Link Paginator
+# Follows links in Link header (GitHub style)
+"paginator": "header_link"
+```
+</CodeGroup>
+
+## Incremental Loading
+
+Load only new or updated records using incremental cursors:
+
+```python
+github_source = rest_api_source({
+    "client": {
+        "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+        "auth": {
+            "token": dlt.secrets["github_token"],
+        },
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "params": {
+                    "state": "all",
+                    "sort": "updated",
+                    "direction": "desc",
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "updated_at",
+                        "initial_value": "2024-01-01T00:00:00Z",
+                    },
+                },
+            },
+        },
+    ],
+})
+```
+
+<Note>
+The `cursor_path` uses JSONPath notation to extract the cursor value from each record. On subsequent runs, only records with a cursor value greater than the last seen value are loaded.
+</Note>
+
+## Dependent Resources
+
+Create resources that depend on data from other resources:
+
+```python
+{
+    "resources": [
+        {
+            "name": "users",
+            "endpoint": {
+                "path": "users",
+            },
+        },
+        {
+            "name": "user_posts",
+            "endpoint": {
+                # Use data from 'users' resource
+                "path": "users/{users.id}/posts",
+            },
+        },
+    ],
+}
+```
+
+The `{users.id}` placeholder is resolved for each user, creating a request per user.
+
+## Complete Example: GitHub API
+
+Here's a comprehensive example loading GitHub repository data:
+
+```python
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+# Configure the source
+github_source = rest_api_source({
+    "client": {
+        "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+        "auth": {
+            "token": dlt.secrets["github_token"],
+        },
+    },
+    "resource_defaults": {
+        "primary_key": "id",
+        "write_disposition": "merge",
+        "endpoint": {
+            "params": {
+                "per_page": 100,
+            },
+        },
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "params": {
+                    "state": "all",
+                    "sort": "updated",
+                    "direction": "desc",
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "updated_at",
+                        "initial_value": "2024-01-01T00:00:00Z",
+                    },
+                },
+            },
+        },
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                "path": "issues/{issues.number}/comments",
+                "params": {
+                    "per_page": 100,
+                },
+            },
+            "include_from_parent": ["id"],  # Include issue ID in comments
+        },
+        {
+            "name": "pulls",
+            "endpoint": {
+                "path": "pulls",
+                "params": {
+                    "state": "all",
+                },
+            },
+        },
+    ],
+})
+
+# Create and run pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="github_pipeline",
+    destination="duckdb",
+    dataset_name="github_data"
+)
+
+load_info = pipeline.run(github_source)
+print(load_info)
+```
+
+## Advanced Features
+
+### Data Selector
+
+Extract data from nested JSON responses:
+
+```python
+"endpoint": {
+    "path": "search/repositories",
+    "params": {"q": "dlt"},
+    "data_selector": "items",  # Extract from response["items"]
+}
+```
+
+### Custom Headers
+
+Add custom headers to requests:
+
+```python
+"endpoint": {
+    "path": "data",
+    "headers": {
+        "X-Custom-Header": "value",
+        "Accept": "application/vnd.github.v3+json",
+    },
+}
+```
+
+### POST Requests
+
+Make POST requests with JSON body:
+
+```python
+"endpoint": {
+    "path": "search",
+    "method": "POST",
+    "json": {
+        "query": "dlt",
+        "filters": {"language": "python"},
+    },
+}
+```
+
+### Processing Steps
+
+Transform data before loading:
+
+```python
+{
+    "name": "users",
+    "endpoint": {"path": "users"},
+    "processing_steps": [
+        {
+            "filter": lambda item: item["active"] is True,
+        },
+        {
+            "map": lambda item: {**item, "processed": True},
+        },
+    ],
+}
+```
+
+## Using the REST Client Directly
+
+For more control, use the `RESTClient` helper:
+
+```python
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
+@dlt.resource
+def fetch_api_data():
+    client = RESTClient(
+        base_url="https://api.example.com",
+        auth=BearerTokenAuth(token=dlt.secrets["api_token"]),
+    )
+
+    for page in client.paginate(
+        "/data",
+        paginator=JSONResponsePaginator(next_url_path="next_page"),
+    ):
+        yield page
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Incremental Loading" icon="arrows-rotate">
+    Always configure incremental loading for large datasets to avoid reprocessing all data on each run.
+  </Card>
+  <Card title="Set Appropriate Limits" icon="gauge-high">
+    Configure `per_page` or `limit` parameters to balance between API rate limits and performance.
+  </Card>
+  <Card title="Handle Rate Limits" icon="clock">
+    Implement retry logic and respect API rate limits to ensure reliable data extraction.
+  </Card>
+  <Card title="Secure Credentials" icon="lock">
+    Always use `dlt.secrets` for API keys and tokens. Never hardcode credentials in your source code.
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Authentication errors">
+    Ensure your token or API key is correctly set in `secrets.toml`:
+
+    ```toml
+    [sources.my_api]
+    api_token = "your_secret_token_here"
+    ```
+
+    Reference it in your source:
+    ```python
+    "auth": {
+        "token": dlt.secrets["sources.my_api.api_token"],
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Pagination not working">
+    Check that the paginator type matches your API's pagination style. Inspect API responses to identify the correct pagination pattern:
+
+    ```python
+    # Debug: Print response to see pagination structure
+    response = requests.get("https://api.example.com/data")
+    print(response.json())
+    ```
+  </Accordion>
+
+  <Accordion title="Missing data in responses">
+    Use `data_selector` to extract data from nested JSON:
+
+    ```python
+    "endpoint": {
+        "path": "data",
+        "data_selector": "results.items",  # Navigate nested structure
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- Learn about [Incremental Loading](/sources/custom-sources#incremental-loading)
+- Explore [SQL Database Source](/sources/sql-database)
+- Check [Available Sources](/sources/available-sources)

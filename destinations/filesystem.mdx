@@ -1,0 +1,455 @@
+---
+title: Filesystem
+description: Load data to local or cloud file systems with dlt
+---
+
+# Filesystem
+
+The filesystem destination allows you to load data into local or cloud file systems including AWS S3, Google Cloud Storage, Azure Blob Storage, and more. It supports multiple file formats and table formats like Delta Lake and Apache Iceberg.
+
+## Install dlt with Filesystem
+
+To use filesystem as a destination, install dlt with the filesystem extra:
+
+```bash
+pip install "dlt[filesystem]"
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+import dlt
+
+# Define your data source
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Create pipeline - saves to local filesystem
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+
+# Run the pipeline
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+### Basic Configuration
+
+<ParamField path="bucket_url" type="string" required>
+  The filesystem path or bucket URL. Supports various protocols:
+  - Local: `file:///path/to/directory`
+  - AWS S3: `s3://bucket-name/path`
+  - GCS: `gs://bucket-name/path`
+  - Azure: `az://container-name/path`
+  - Memory: `memory://m`
+</ParamField>
+
+<ParamField path="layout" type="string">
+  Layout of files in the destination using placeholders like `{table_name}`, `{load_id}`, `{file_id}`, etc.
+</ParamField>
+
+<ParamField path="extra_placeholders" type="dict">
+  Additional custom placeholders for the layout
+</ParamField>
+
+<ParamField path="current_datetime" type="callable">
+  Function to provide current datetime for time-based placeholders
+</ParamField>
+
+<ParamField path="max_state_files" type="int" default="100">
+  Maximum number of pipeline state files to keep. Set to 0 or negative to disable cleanup.
+</ParamField>
+
+## Supported Protocols
+
+### Local Filesystem
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem("file:///tmp/my_data"),
+    dataset_name="my_dataset"
+)
+```
+
+### AWS S3
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem("s3://my-bucket/data"),
+    dataset_name="my_dataset"
+)
+```
+
+Configure AWS credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "s3://my-bucket/data"
+
+[destination.filesystem.credentials]
+aws_access_key_id = "your-access-key"
+aws_secret_access_key = "your-secret-key"
+region_name = "us-east-1"
+```
+
+### Google Cloud Storage
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem("gs://my-bucket/data"),
+    dataset_name="my_dataset"
+)
+```
+
+Configure GCS credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "gs://my-bucket/data"
+
+[destination.filesystem.credentials]
+project_id = "my-project"
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "service-account@my-project.iam.gserviceaccount.com"
+```
+
+### Azure Blob Storage
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem("az://my-container/data"),
+    dataset_name="my_dataset"
+)
+```
+
+Configure Azure credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "az://my-container/data"
+
+[destination.filesystem.credentials]
+azure_storage_account_name = "mystorageaccount"
+azure_storage_account_key = "your-account-key"
+```
+
+### Hugging Face Datasets
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem("hf://datasets/my-username/my-dataset"),
+    dataset_name="my_dataset"
+)
+```
+
+Configure Hugging Face credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "hf://datasets/my-username/my-dataset"
+
+[destination.filesystem.credentials]
+token = "hf_..."
+```
+
+## File Formats
+
+The filesystem destination supports multiple file formats:
+
+<CodeGroup>
+```python JSONL
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="jsonl")
+```
+
+```python Parquet
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+```python CSV
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="csv")
+```
+</CodeGroup>
+
+## File Layout
+
+Customize the directory structure and file naming:
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem(
+        bucket_url="s3://my-bucket/data",
+        layout="{table_name}/{load_id}.{file_id}.{ext}"
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### Available Placeholders
+
+- `{table_name}`: Name of the table
+- `{schema_name}`: Name of the schema
+- `{load_id}`: Unique load identifier
+- `{file_id}`: File number within the load
+- `{ext}`: File extension (jsonl, parquet, csv)
+- `{timestamp}`: Load timestamp
+- `{curr_date}`: Current date
+
+### Custom Placeholders
+
+Define custom placeholders:
+
+```python
+import dlt
+from dlt.destinations import filesystem
+from datetime import datetime
+
+pipeline = dlt.pipeline(
+    destination=filesystem(
+        bucket_url="s3://my-bucket/data",
+        layout="year={year}/month={month}/{table_name}.{ext}",
+        extra_placeholders={
+            "year": datetime.now().year,
+            "month": datetime.now().month
+        }
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+## Table Formats
+
+### Delta Lake
+
+Create Delta Lake tables:
+
+```python
+import dlt
+
+@dlt.resource(table_format="delta")
+def delta_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(delta_data(), loader_file_format="parquet")
+```
+
+<Note>
+  Delta Lake requires Parquet file format.
+</Note>
+
+### Apache Iceberg
+
+Create Apache Iceberg tables:
+
+```python
+import dlt
+
+@dlt.resource(table_format="iceberg")
+def iceberg_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(iceberg_data(), loader_file_format="parquet")
+```
+
+<Note>
+  Iceberg requires Parquet file format.
+</Note>
+
+## Write Dispositions
+
+### Regular Tables
+
+For regular file-based tables, only truncate-and-insert is supported:
+
+```python
+@dlt.resource(write_disposition="replace")
+def replace_data():
+    yield {"id": 1, "value": "new"}
+```
+
+### Delta/Iceberg Tables
+
+Delta and Iceberg tables support all write dispositions:
+
+<CodeGroup>
+```python Append
+@dlt.resource(
+    write_disposition="append",
+    table_format="delta"
+)
+def append_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Merge
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id",
+    table_format="delta"
+)
+def merge_data():
+    yield {"id": 1, "value": "updated"}
+```
+</CodeGroup>
+
+## Querying Data
+
+Query filesystem data using DuckDB:
+
+```python
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data())
+
+# Query Parquet files
+conn = duckdb.connect()
+df = conn.execute("""
+    SELECT * FROM read_parquet('file:///tmp/my_data/**/*.parquet')
+""").df()
+
+print(df.head())
+```
+
+## Advanced Features
+
+### Partitioning
+
+Partition data using the layout:
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem(
+        bucket_url="s3://my-bucket/data",
+        layout="{table_name}/year={year}/month={month}/data.{file_id}.{ext}"
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### Compression
+
+Parquet files are automatically compressed. Configure compression level:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="filesystem",
+    dataset_name="my_dataset"
+)
+
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+### State Management
+
+Control pipeline state file retention:
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    destination=filesystem(
+        bucket_url="s3://my-bucket/data",
+        max_state_files=50  # Keep last 50 state files
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+## Use Cases
+
+Filesystem destination is ideal for:
+
+- **Data Lake Storage**: Store raw data in cloud storage
+- **Staging Area**: Stage data before loading to warehouses
+- **Backup and Archive**: Long-term data retention
+- **Data Sharing**: Share data files across systems
+- **Cost Optimization**: Lower storage costs compared to warehouses
+- **Hugging Face Datasets**: Publish datasets to Hugging Face
+
+## Performance Tips
+
+1. **Use Parquet**: Better compression and query performance
+2. **Partition Data**: Use date-based partitioning for large datasets
+3. **Table Formats**: Use Delta/Iceberg for ACID guarantees
+4. **Batch Size**: Adjust batch size for optimal file sizes
+5. **Compression**: Leverage Parquet's built-in compression
+
+## Limitations
+
+<Warning>
+  - Regular file tables don't support merge operations
+  - Delta/Iceberg require Parquet format
+  - No built-in query engine (use DuckDB, Spark, etc.)
+  - File-level operations only (no row-level updates for regular files)
+</Warning>
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Delta Lake" icon="triangle" href="https://delta.io/">
+    Learn about Delta Lake format
+  </Card>
+  <Card title="Apache Iceberg" icon="snowflake" href="https://iceberg.apache.org/">
+    Learn about Iceberg tables
+  </Card>
+</CardGroup>

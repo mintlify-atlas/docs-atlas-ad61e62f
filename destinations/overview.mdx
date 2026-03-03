@@ -1,0 +1,163 @@
+---
+title: Destinations Overview
+description: Learn about dlt destinations and how to load data into various data warehouses, databases, and file systems
+---
+
+# Destinations Overview
+
+dlt supports loading data into a wide variety of destinations, from cloud data warehouses to local databases and file systems. Each destination has its own unique capabilities and configuration options.
+
+## What is a Destination?
+
+A destination in dlt is a target location where your data will be loaded. This could be:
+
+- **Data Warehouses**: BigQuery, Snowflake, Redshift, Databricks
+- **Databases**: PostgreSQL, DuckDB
+- **File Systems**: Local files, S3, GCS, Azure Blob Storage
+- **Custom Destinations**: Build your own destination adapter
+
+## How to Use Destinations
+
+Every dlt pipeline requires a destination. You specify it when creating your pipeline:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="bigquery",
+    dataset_name="my_dataset"
+)
+```
+
+## Configuring Destinations
+
+Destinations can be configured in multiple ways:
+
+<Steps>
+  <Step title="In Code">
+    Pass configuration directly when creating the pipeline:
+
+    ```python
+    import dlt
+    from dlt.destinations import bigquery
+
+    pipeline = dlt.pipeline(
+        destination=bigquery(location="EU"),
+        dataset_name="my_dataset"
+    )
+    ```
+  </Step>
+
+  <Step title="Using Config Files">
+    Store credentials in `.dlt/secrets.toml`:
+
+    ```toml
+    [destination.bigquery]
+    location = "US"
+
+    [destination.bigquery.credentials]
+    project_id = "my-project"
+    private_key = "..."
+    client_email = "..."
+    ```
+  </Step>
+
+  <Step title="Environment Variables">
+    Use environment variables for sensitive data:
+
+    ```bash
+    export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="my-project"
+    export DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY="..."
+    ```
+  </Step>
+</Steps>
+
+## Available Destinations
+
+dlt supports the following destinations out of the box:
+
+### Cloud Data Warehouses
+
+- [BigQuery](/destinations/bigquery) - Google's serverless data warehouse
+- [Snowflake](/destinations/snowflake) - Cloud-native data platform
+- [Redshift](/destinations/redshift) - Amazon's cloud data warehouse
+- [Databricks](/destinations/databricks) - Lakehouse platform with Delta Lake
+
+### Databases
+
+- [PostgreSQL](/destinations/postgres) - Popular open-source relational database
+- [DuckDB](/destinations/duckdb) - In-process analytical database
+
+### File Systems
+
+- [Filesystem](/destinations/filesystem) - Load to local or cloud file systems (S3, GCS, Azure)
+
+### Custom Destinations
+
+- [Custom Destinations](/destinations/custom-destinations) - Build your own destination adapter
+
+For a complete list of all available destinations, see the [All Destinations](/destinations/all-destinations) page.
+
+## Destination Capabilities
+
+Different destinations have different capabilities:
+
+| Feature | BigQuery | Snowflake | Redshift | Postgres | DuckDB |
+|---------|----------|-----------|----------|----------|---------|
+| **DDL Transactions** | No | Yes | Yes | Yes | Yes |
+| **Merge Operations** | Yes | Yes | Yes | Yes | Yes |
+| **Staging Support** | Yes | Yes | Yes | Yes | Yes |
+| **Case Sensitive IDs** | Yes | Yes | No | Yes | Yes |
+| **Nested Types** | Limited | No | No | No | Yes |
+
+## Write Dispositions
+
+All destinations support the following write dispositions:
+
+- **append**: Add new records to existing tables
+- **replace**: Replace all data in the table
+- **merge**: Update existing records and insert new ones
+
+```python
+@dlt.resource(write_disposition="merge", primary_key="id")
+def my_resource():
+    yield {"id": 1, "value": "data"}
+```
+
+## File Formats
+
+Destinations support different file formats for loading:
+
+- **JSONL**: JSON Lines format (widely supported)
+- **Parquet**: Columnar format (better compression and performance)
+- **CSV**: Comma-separated values (limited support)
+
+The preferred format depends on the destination and your use case.
+
+## Staging Support
+
+Many destinations support staging data through cloud storage before loading:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="snowflake",
+    staging="filesystem",  # Stage files in cloud storage first
+    dataset_name="my_dataset"
+)
+```
+
+Staging can improve performance for large datasets and is required for some destinations.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Choose a Destination" icon="database" href="/destinations/all-destinations">
+    Browse all available destinations
+  </Card>
+  <Card title="Configuration Guide" icon="gear" href="/destinations/bigquery">
+    Learn how to configure destinations
+  </Card>
+</CardGroup>

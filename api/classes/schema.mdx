@@ -1,0 +1,527 @@
+---
+title: Schema
+description: Reference for the Schema class in dlt
+---
+
+The `Schema` class manages table definitions, column types, and data validation rules for your data pipeline. It handles schema evolution, normalization, and ensures data integrity.
+
+## Creating a Schema
+
+Schemas are typically created automatically by dlt, but can also be created explicitly:
+
+```python
+from dlt.common.schema import Schema
+
+schema = Schema("my_schema")
+```
+
+## Properties
+
+### name
+
+The name of the schema.
+
+```python
+name = schema.name
+```
+
+**Returns:** `str` - Schema name
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:654
+
+### tables
+
+Dictionary of all tables in the schema.
+
+```python
+for table_name, table_def in schema.tables.items():
+    print(f"Table: {table_name}")
+```
+
+**Returns:** `TSchemaTables` - Dictionary of table schemas
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:658
+
+### version
+
+Current version of the schema content, incremented when modified.
+
+```python
+version = schema.version
+```
+
+**Returns:** `int` - Current schema version
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:606
+
+### stored_version
+
+Version of the schema from the time it was loaded/created.
+
+```python
+stored = schema.stored_version
+```
+
+**Returns:** `int` - Stored schema version
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:617
+
+### version_hash
+
+Current version hash computed from schema content.
+
+```python
+hash_value = schema.version_hash
+```
+
+**Returns:** `str` - Schema version hash
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:626
+
+### is_modified
+
+Checks if schema was modified since it was saved.
+
+```python
+if schema.is_modified:
+    print("Schema has unsaved changes")
+```
+
+**Returns:** `bool` - True if schema is modified
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:640
+
+### is_new
+
+Checks if schema was ever saved.
+
+```python
+if schema.is_new:
+    print("Schema has not been saved yet")
+```
+
+**Returns:** `bool` - True if schema is new
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:648
+
+### settings
+
+Schema settings including default hints and preferred types.
+
+```python
+settings = schema.settings
+```
+
+**Returns:** `TSchemaSettings` - Schema settings dictionary
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:715
+
+### naming
+
+Naming convention used by the schema to normalize identifiers.
+
+```python
+naming = schema.naming
+```
+
+**Returns:** `NamingConvention` - Naming convention instance
+
+## Methods
+
+### get_table()
+
+Gets a table schema by name.
+
+```python
+table = schema.get_table("users")
+```
+
+<ParamField path="table_name" type="str" required>
+  Name of the table to retrieve.
+</ParamField>
+
+**Returns:** `TTableSchema` - Table schema dictionary
+
+**Raises:** `TableNotFound` - If table doesn't exist
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:537
+
+### get_table_columns()
+
+Gets columns of a table, optionally including incomplete columns.
+
+```python
+columns = schema.get_table_columns("users", include_incomplete=False)
+```
+
+<ParamField path="table_name" type="str" required>
+  Name of the table.
+</ParamField>
+
+<ParamField path="include_incomplete" type="bool" default="False">
+  Whether to include columns without data type.
+</ParamField>
+
+**Returns:** `TTableSchemaColumns` - Dictionary of column schemas
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:543
+
+### update_table()
+
+Adds or merges a partial table schema into the schema.
+
+```python
+partial_table = {
+    "name": "users",
+    "columns": {
+        "id": {"data_type": "bigint", "nullable": False},
+        "name": {"data_type": "text"}
+    }
+}
+
+schema.update_table(partial_table)
+```
+
+<ParamField path="partial_table" type="TPartialTableSchema" required>
+  Table schema to add or merge.
+</ParamField>
+
+<ParamField path="normalize_identifiers" type="bool" default="True">
+  Whether to normalize identifiers using naming convention.
+</ParamField>
+
+<ParamField path="from_diff" type="bool" default="False">
+  If True, partial_table is treated as a diff to apply directly.
+</ParamField>
+
+<ParamField path="merge_compound_props" type="bool" default="True">
+  If False, compound properties replace rather than merge.
+</ParamField>
+
+**Returns:** `TPartialTableSchema` - The applied partial table
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:350
+
+### update_schema()
+
+Updates this schema from an incoming schema.
+
+```python
+schema.update_schema(other_schema)
+```
+
+<ParamField path="schema" type="Schema" required>
+  Schema to merge from.
+</ParamField>
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:405
+
+### drop_tables()
+
+Drops tables from the schema.
+
+```python
+dropped = schema.drop_tables(["table1", "table2"])
+```
+
+<ParamField path="table_names" type="Sequence[str]" required>
+  List of table names to drop. Must include all nested tables.
+</ParamField>
+
+**Returns:** `List[TTableSchema]` - List of dropped table schemas
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:420
+
+### data_tables()
+
+Gets list of all data tables (excludes dlt internal tables).
+
+```python
+tables = schema.data_tables(seen_data_only=True)
+```
+
+<ParamField path="seen_data_only" type="bool" default="False">
+  Only include tables that have seen data.
+</ParamField>
+
+<ParamField path="include_incomplete" type="bool" default="False">
+  Include tables without columns.
+</ParamField>
+
+**Returns:** `List[TTableSchema]` - List of data table schemas
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:553
+
+### data_table_names()
+
+Returns list of data table names.
+
+```python
+names = schema.data_table_names(seen_data_only=True)
+```
+
+<ParamField path="seen_data_only" type="bool" default="False">
+  Only include tables that have seen data.
+</ParamField>
+
+<ParamField path="include_incomplete" type="bool" default="False">
+  Include incomplete tables.
+</ParamField>
+
+**Returns:** `List[str]` - List of table names
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:570
+
+### dlt_tables()
+
+Gets dlt internal tables.
+
+```python
+internal_tables = schema.dlt_tables()
+```
+
+**Returns:** `List[TTableSchema]` - List of dlt table schemas
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:581
+
+### clone()
+
+Creates a deep copy of the schema.
+
+```python
+cloned = schema.clone(
+    with_name="new_schema",
+    remove_processing_hints=True
+)
+```
+
+<ParamField path="with_name" type="str" default="None">
+  New name for the cloned schema.
+</ParamField>
+
+<ParamField path="remove_processing_hints" type="bool" default="False">
+  Remove processing markers (x-normalizer, x-loader hints).
+</ParamField>
+
+<ParamField path="update_normalizers" type="bool" default="False">
+  Update normalizers and identifiers in cloned schema.
+</ParamField>
+
+**Returns:** `Schema` - Cloned schema
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:898
+
+### set_schema_contract()
+
+Sets schema contract settings.
+
+```python
+schema.set_schema_contract({
+    "tables": "freeze",
+    "columns": "evolve",
+    "data_type": "discard_value"
+})
+```
+
+<ParamField path="settings" type="TSchemaContract" required>
+  Contract settings or None to remove.
+</ParamField>
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:943
+
+### to_dict()
+
+Converts schema to dictionary representation.
+
+```python
+schema_dict = schema.to_dict(
+    remove_defaults=True,
+    remove_processing_hints=True
+)
+```
+
+<ParamField path="remove_defaults" type="bool" default="False">
+  Remove default values from output.
+</ParamField>
+
+<ParamField path="remove_processing_hints" type="bool" default="False">
+  Remove processing hints.
+</ParamField>
+
+<ParamField path="bump_version" type="bool" default="True">
+  Increment version if modified.
+</ParamField>
+
+**Returns:** `TStoredSchema` - Schema as dictionary
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:739
+
+### to_pretty_json()
+
+Converts schema to formatted JSON string.
+
+```python
+json_str = schema.to_pretty_json(remove_defaults=True)
+```
+
+<ParamField path="remove_defaults" type="bool" default="True">
+  Remove default values.
+</ParamField>
+
+<ParamField path="remove_processing_hints" type="bool" default="False">
+  Remove processing hints.
+</ParamField>
+
+**Returns:** `str` - Pretty-printed JSON
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:774
+
+### to_pretty_yaml()
+
+Converts schema to formatted YAML string.
+
+```python
+yaml_str = schema.to_pretty_yaml(remove_defaults=True)
+```
+
+<ParamField path="remove_defaults" type="bool" default="True">
+  Remove default values.
+</ParamField>
+
+<ParamField path="remove_processing_hints" type="bool" default="False">
+  Remove processing hints.
+</ParamField>
+
+**Returns:** `str` - Pretty-printed YAML
+
+**Source:** ~/workspace/source/dlt/common/schema/schema.py:782
+
+## Example Usage
+
+### Accessing Schema Information
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb"
+)
+
+# Get schema from pipeline
+schema = pipeline.default_schema
+
+print(f"Schema name: {schema.name}")
+print(f"Version: {schema.version}")
+print(f"Tables: {schema.data_table_names()}")
+
+# Get specific table
+users_table = schema.get_table("users")
+print(f"Users columns: {list(users_table['columns'].keys())}")
+```
+
+### Setting Schema Contract
+
+```python
+import dlt
+
+schema = dlt.Schema("strict_schema")
+
+# Freeze schema - no new tables or columns allowed
+schema.set_schema_contract({
+    "tables": "freeze",
+    "columns": "freeze",
+    "data_type": "freeze"
+})
+
+# Or use shorthand
+schema.set_schema_contract("freeze")
+```
+
+### Modifying Schema
+
+```python
+from dlt.common.schema import Schema
+
+schema = Schema("my_schema")
+
+# Add a new table
+table_schema = {
+    "name": "users",
+    "columns": {
+        "id": {"data_type": "bigint", "nullable": False},
+        "name": {"data_type": "text"},
+        "email": {"data_type": "text", "unique": True},
+        "created_at": {"data_type": "timestamp"}
+    },
+    "write_disposition": "append"
+}
+
+schema.update_table(table_schema)
+
+# Get table columns
+columns = schema.get_table_columns("users")
+for col_name, col_def in columns.items():
+    print(f"{col_name}: {col_def['data_type']}")
+```
+
+### Schema Versioning
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="versioned",
+    destination="postgres"
+)
+
+schema = pipeline.default_schema
+
+print(f"Current version: {schema.version}")
+print(f"Version hash: {schema.version_hash}")
+print(f"Is modified: {schema.is_modified}")
+print(f"Is new: {schema.is_new}")
+```
+
+### Exporting Schema
+
+```python
+from dlt.common.schema import Schema
+
+schema = Schema("export_example")
+
+# Export as JSON
+json_schema = schema.to_pretty_json(remove_defaults=True)
+with open("schema.json", "w") as f:
+    f.write(json_schema)
+
+# Export as YAML
+yaml_schema = schema.to_pretty_yaml(remove_defaults=True)
+with open("schema.yaml", "w") as f:
+    f.write(yaml_schema)
+
+# Export as dictionary
+schema_dict = schema.to_dict()
+```
+
+### Cloning and Modifying Schema
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="source",
+    destination="duckdb"
+)
+
+original_schema = pipeline.default_schema
+
+# Clone with new name
+cloned_schema = original_schema.clone(
+    with_name="modified_schema",
+    remove_processing_hints=True
+)
+
+# Modify cloned schema
+cloned_schema.set_schema_contract("freeze")
+```

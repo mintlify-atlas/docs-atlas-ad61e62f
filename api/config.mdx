@@ -1,0 +1,147 @@
+---
+title: dlt.config
+description: Access configuration values in dlt pipelines
+---
+
+The `dlt.config` accessor provides dictionary-like access to configuration values. Use it to access non-sensitive configuration values like API endpoints, batch sizes, or feature flags.
+
+## Basic Usage
+
+```python
+import dlt
+
+# Access config values
+api_url = dlt.config["api_url"]
+batch_size = dlt.config.get("batch_size", int)
+
+# Check if config exists
+if "custom_setting" in dlt.config:
+    value = dlt.config["custom_setting"]
+
+# Set config values programmatically
+dlt.config["runtime.setting"] = "value"
+```
+
+## Methods
+
+### `__getitem__(field: str)`
+
+Get a configuration value by field name. Raises `ConfigFieldMissingException` if not found.
+
+<ParamField path="field" type="str" required>
+  Configuration key to retrieve. Use dot notation for nested values (e.g., `"sources.github.api_url"`).
+</ParamField>
+
+**Returns:** The configuration value, automatically cast to appropriate type.
+
+**Example:**
+```python
+api_url = dlt.config["sources.github.api_url"]
+```
+
+### `get(field: str, expected_type: Type = None)`
+
+Get a configuration value with optional type casting. Returns `None` if not found.
+
+<ParamField path="field" type="str" required>
+  Configuration key to retrieve.
+</ParamField>
+
+<ParamField path="expected_type" type="Type" default="None">
+  Expected type to deserialize the value into (e.g., `int`, `bool`, `list`).
+</ParamField>
+
+**Returns:** The configuration value cast to `expected_type`, or `None` if not found.
+
+**Example:**
+```python
+max_retries = dlt.config.get("api.max_retries", int)
+timeout = dlt.config.get("api.timeout", float)
+```
+
+### `__setitem__(field: str, value: Any)`
+
+Set a configuration value programmatically.
+
+<ParamField path="field" type="str" required>
+  Configuration key to set. Use dot notation for sections.
+</ParamField>
+
+<ParamField path="value" type="Any" required>
+  Value to store.
+</ParamField>
+
+**Example:**
+```python
+dlt.config["sources.custom.endpoint"] = "https://api.example.com"
+```
+
+### `__contains__(field: str)`
+
+Check if a configuration value exists.
+
+**Example:**
+```python
+if "optional_setting" in dlt.config:
+    process(dlt.config["optional_setting"])
+```
+
+## Automatic Injection with `dlt.config.value`
+
+Use `dlt.config.value` as a default argument value to automatically inject configuration:
+
+```python
+import dlt
+from dlt.sources.helpers import requests
+
+@dlt.resource
+def my_resource(api_url=dlt.config.value, batch_size=dlt.config.value):
+    """dlt will automatically inject api_url and batch_size from config"""
+    response = requests.get(api_url)
+    yield response.json()
+```
+
+Configuration lookup paths:
+- `sources.<source_name>.<resource_name>.<arg_name>`
+- `sources.<source_name>.<arg_name>`
+- `<arg_name>`
+
+## Configuration Sources
+
+The `dlt.config` accessor reads from multiple providers in order:
+
+1. Environment variables (e.g., `SOURCES__GITHUB__API_URL`)
+2. `config.toml` file in `.dlt/` directory
+3. `secrets.toml` file (config can also be stored here)
+4. Airflow Variables (when running in Airflow)
+5. Google Secret Manager, AWS Secrets Manager, etc. (if configured)
+
+**Note:** For sensitive values like passwords and API tokens, use [`dlt.secrets`](/api/secrets) instead.
+
+## Configuration File Example
+
+In `.dlt/config.toml`:
+
+```toml
+[sources.github]
+api_url = "https://api.github.com"
+max_items_per_page = 100
+
+[runtime]
+batch_size = 1000
+timeout = 30.0
+```
+
+## Environment Variables
+
+Configuration can be provided via environment variables using double underscores for nesting:
+
+```bash
+export SOURCES__GITHUB__API_URL="https://api.github.com"
+export RUNTIME__BATCH_SIZE="1000"
+```
+
+## See Also
+
+- [dlt.secrets](/api/secrets) - For accessing sensitive configuration values
+- [Configuration documentation](https://dlthub.com/docs/general-usage/credentials) - Detailed guide on configuration

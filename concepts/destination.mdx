@@ -1,0 +1,460 @@
+---
+title: Destination
+description: Where your data is loaded - databases, data warehouses, and data lakes
+---
+
+A **destination** is where dlt loads your data. It can be a database, data warehouse, data lake, or vector store. Destinations handle the final step of the ETL process, converting normalized data into the format required by the target system.
+
+## What is a Destination?
+
+A destination in dlt:
+- **Receives normalized data** from the pipeline
+- **Creates and manages tables** in the target system
+- **Handles schema evolution** as your data changes
+- **Manages credentials** and connection settings
+- **Optimizes loading** using the best file formats and methods
+
+## Supported Destinations
+
+dlt supports a wide range of destinations:
+
+### Databases
+- **DuckDB** - Embedded analytical database
+- **PostgreSQL** - Popular relational database
+- **MySQL / MS SQL** - Traditional relational databases
+- **MotherDuck** - Cloud-based DuckDB
+
+### Data Warehouses
+- **Snowflake** - Cloud data warehouse
+- **BigQuery** - Google's data warehouse
+- **Redshift** - Amazon's data warehouse
+- **Databricks** - Lakehouse platform
+- **Synapse** - Microsoft's analytics service
+
+### Data Lakes
+- **Filesystem** - Local or cloud storage (S3, GCS, Azure)
+- **Athena** - Query S3 data with SQL
+
+### Vector Databases
+- **Weaviate** - Vector search engine
+- **Qdrant** - Vector similarity search
+- **LanceDB** - Embedded vector database
+
+### Others
+- **ClickHouse** - OLAP database
+- **Dremio** - Data lakehouse
+
+## Using a Destination
+
+### Specify by Name
+
+The simplest way is to use a string:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",  # Destination name as string
+    dataset_name="my_data"
+)
+```
+
+### Import Destination Module
+
+For more control, import the destination:
+
+```python
+import dlt
+from dlt.destinations import bigquery
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=bigquery(),  # Destination instance
+    dataset_name="my_data"
+)
+```
+
+### Configure with Parameters
+
+Pass configuration directly:
+
+```python
+import dlt
+from dlt.destinations import postgres
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=postgres(
+        host="localhost",
+        port=5432,
+        database="mydb",
+        username="user",
+        password=dlt.secrets.value
+    ),
+    dataset_name="my_data"
+)
+```
+
+## Destination Configuration
+
+### Environment Variables
+
+Most destinations support configuration via environment variables or config files:
+
+```toml
+# secrets.toml
+[destination.postgres]
+host = "localhost"
+port = 5432
+database = "analytics"
+username = "dlt_user"
+password = "your-secret-password"
+```
+
+```python
+import dlt
+
+# Credentials loaded automatically from secrets.toml
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="postgres",
+    dataset_name="analytics"
+)
+```
+
+### BigQuery Example
+
+```toml
+# secrets.toml
+[destination.bigquery]
+project_id = "my-gcp-project"
+private_key = "-----BEGIN PRIVATE KEY-----\n..."
+client_email = "dlt@my-project.iam.gserviceaccount.com"
+```
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="gcp_pipeline",
+    destination="bigquery",
+    dataset_name="analytics"
+)
+```
+
+### Snowflake Example
+
+```toml
+# secrets.toml
+[destination.snowflake]
+account = "my-account"
+user = "dlt_user"
+password = "secure-password"
+warehouse = "COMPUTE_WH"
+database = "ANALYTICS"
+```
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="snowflake_pipeline",
+    destination="snowflake",
+    dataset_name="raw_data"
+)
+```
+
+## Staging Destinations
+
+Some destinations support staging - loading data to cloud storage first, then copying to the warehouse:
+
+```python
+import dlt
+from dlt.destinations import redshift, filesystem
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=redshift(),
+    staging=filesystem("s3://my-bucket/staging"),  # Stage to S3 first
+    dataset_name="my_data"
+)
+```
+
+Staging improves performance for large data loads and is required for some destinations like Redshift and Snowflake when loading certain file formats.
+
+## Destination Capabilities
+
+Different destinations have different capabilities:
+
+### File Formats
+
+Destinations support different file formats:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="bigquery",
+    dataset_name="my_data"
+)
+
+# BigQuery prefers Parquet
+load_info = pipeline.run(
+    my_source(),
+    loader_file_format="parquet"  # Options: jsonl, parquet, insert_values
+)
+```
+
+### Table Formats
+
+Some destinations support special table formats:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="filesystem",
+    dataset_name="my_data"
+)
+
+@dlt.resource(table_format="delta")  # Delta Lake format
+def my_data():
+    yield {"id": 1, "value": "a"}
+
+load_info = pipeline.run(my_data())
+```
+
+Supported table formats:
+- **Delta** - Delta Lake (filesystem, Athena)
+- **Iceberg** - Apache Iceberg (filesystem, Athena)
+
+## Working with Destinations
+
+### Access Destination Data
+
+Query loaded data using destination-specific clients:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="chess_pipeline",
+    destination="duckdb",
+    dataset_name="chess_data"
+)
+
+load_info = pipeline.run(chess_source())
+
+# Access DuckDB connection
+with pipeline.sql_client() as client:
+    # Execute queries
+    result = client.execute_sql("SELECT * FROM player LIMIT 10")
+    for row in result:
+        print(row)
+```
+
+### Use Destination Adapters
+
+Some destinations have adapters for special features:
+
+```python
+import dlt
+from dlt.destinations.adapters import bigquery_adapter
+
+@dlt.resource
+def my_resource():
+    yield {"id": 1, "value": "test"}
+
+# Configure BigQuery-specific options
+adapted = bigquery_adapter(
+    my_resource(),
+    partition="created_date",
+    cluster=["user_id", "region"]
+)
+
+load_info = pipeline.run(adapted)
+```
+
+## Filesystem Destination
+
+The filesystem destination writes data to local or cloud storage:
+
+```python
+import dlt
+
+# Local filesystem
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="filesystem",
+    dataset_name="my_data"
+)
+
+# S3
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.filesystem("s3://my-bucket/data"),
+    dataset_name="my_data"
+)
+
+# Google Cloud Storage
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.filesystem("gs://my-bucket/data"),
+    dataset_name="my_data"
+)
+
+# Azure Blob Storage
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.filesystem("az://my-container/data"),
+    dataset_name="my_data"
+)
+```
+
+### Filesystem Layouts
+
+```python
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=filesystem(
+        "s3://my-bucket",
+        layout="{table_name}/{load_id}.{file_id}.{ext}"  # Custom file layout
+    ),
+    dataset_name="my_data"
+)
+```
+
+## DuckDB Destination
+
+DuckDB is the default destination - fast, embedded, and great for development:
+
+```python
+import dlt
+
+# Use default in-memory database
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_data"
+)
+
+# Use persistent database file
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.duckdb("my_data.duckdb"),
+    dataset_name="my_data"
+)
+```
+
+## Type Signature
+
+From `/home/daytona/workspace/source/dlt/common/destination/reference.py:47-50`:
+
+```python
+class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
+    """A destination factory that can be partially pre-configured
+    with credentials and other config params.
+    """
+    
+    def __init__(self, **kwargs: Any) -> None:
+        # Configure with explicit parameters
+        ...
+    
+    def capabilities(
+        self,
+        config: Optional[TDestinationConfig] = None,
+        naming: Optional[NamingConvention] = None
+    ) -> DestinationCapabilitiesContext:
+        """Get destination capabilities"""
+        ...
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use appropriate file formats">
+    Choose Parquet for analytical queries, JSONL for flexibility, or let dlt choose based on destination
+  </Step>
+  
+  <Step title="Leverage staging for large loads">
+    Use staging destinations (S3, GCS) when loading large amounts of data to warehouses
+  </Step>
+  
+  <Step title="Configure credentials securely">
+    Store credentials in secrets.toml or environment variables, never in code
+  </Step>
+  
+  <Step title="Use dev_mode during development">
+    Enable dev_mode to avoid polluting production datasets while testing
+  </Step>
+  
+  <Step title="Monitor load_info">
+    Check the returned LoadInfo object for errors, metrics, and job statuses
+  </Step>
+</Steps>
+
+<Note>
+**Destination Selection**: Start with DuckDB for local development and testing, then switch to your production destination by changing a single parameter.
+</Note>
+
+<Warning>
+**Credentials Security**: Never commit secrets.toml or .env files to version control. Use environment variables or secret managers in production.
+</Warning>
+
+## Common Patterns
+
+### Multi-Environment Setup
+
+```python
+import dlt
+import os
+
+# Different destinations per environment
+if os.getenv("ENV") == "production":
+    destination = "bigquery"
+elif os.getenv("ENV") == "staging":
+    destination = "snowflake"
+else:
+    destination = "duckdb"
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=destination,
+    dataset_name="analytics"
+)
+```
+
+### Data Lake to Warehouse
+
+```python
+import dlt
+
+# First load to data lake
+lake_pipeline = dlt.pipeline(
+    pipeline_name="to_lake",
+    destination=dlt.destinations.filesystem("s3://data-lake/raw"),
+    dataset_name="raw_data"
+)
+lake_pipeline.run(my_source())
+
+# Then load to warehouse with staging
+warehouse_pipeline = dlt.pipeline(
+    pipeline_name="to_warehouse",
+    destination="snowflake",
+    staging=dlt.destinations.filesystem("s3://data-lake/staging"),
+    dataset_name="analytics"
+)
+warehouse_pipeline.run(my_source())
+```
+
+## Related Concepts
+
+- [Pipeline](/concepts/pipeline) - Orchestrates data loading to destinations
+- [Schema](/concepts/schema) - Defines table structure at destination
+- [Resource](/concepts/resource) - Provides data loaded to destination

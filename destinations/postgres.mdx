@@ -1,0 +1,463 @@
+---
+title: PostgreSQL
+description: Load data into PostgreSQL with dlt
+---
+
+# PostgreSQL
+
+PostgreSQL is a powerful, open-source object-relational database system with a strong reputation for reliability, feature robustness, and performance.
+
+## Install dlt with PostgreSQL
+
+To use PostgreSQL as a destination, install dlt with the PostgreSQL extra:
+
+```bash
+pip install "dlt[postgres]"
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+import dlt
+
+# Define your data source
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Create pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="postgres",
+    dataset_name="my_dataset"
+)
+
+# Run the pipeline
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+### Basic Configuration
+
+<ParamField path="host" type="string" required>
+  The PostgreSQL server hostname or IP address
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The database name
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The database username
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The database password
+</ParamField>
+
+<ParamField path="port" type="int" default="5432">
+  The PostgreSQL port number
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="connect_timeout" type="int" default="15">
+  Connection timeout in seconds
+</ParamField>
+
+<ParamField path="client_encoding" type="string">
+  Client encoding for text data (e.g., "utf-8")
+</ParamField>
+
+<ParamField path="create_indexes" type="bool" default="true">
+  Whether to create indexes on primary keys and unique columns
+</ParamField>
+
+## Authentication
+
+### Username and Password
+
+Create a `.dlt/secrets.toml` file with your credentials:
+
+```toml
+[destination.postgres.credentials]
+host = "localhost"
+port = 5432
+database = "my_database"
+username = "my_user"
+password = "my_password"
+```
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    Download and install PostgreSQL from [postgresql.org](https://www.postgresql.org/download/)
+  </Step>
+
+  <Step title="Create a Database">
+    ```sql
+    CREATE DATABASE my_dlt_database;
+    ```
+  </Step>
+
+  <Step title="Create a User and Grant Permissions">
+    ```sql
+    CREATE USER dlt_user WITH PASSWORD 'your-secure-password';
+    GRANT ALL PRIVILEGES ON DATABASE my_dlt_database TO dlt_user;
+    
+    -- Connect to the database first
+    \c my_dlt_database
+    
+    GRANT ALL ON SCHEMA public TO dlt_user;
+    ```
+  </Step>
+</Steps>
+
+### Connection String
+
+You can also use a connection string:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="postgresql://user:password@localhost:5432/database",
+    dataset_name="my_dataset"
+)
+```
+
+Or in `secrets.toml`:
+
+```toml
+[destination]
+postgres = "postgresql://user:password@localhost:5432/database"
+```
+
+## Data Loading
+
+PostgreSQL supports efficient data loading using COPY commands.
+
+### Supported File Formats
+
+<CodeGroup>
+```python JSONL (Default)
+pipeline = dlt.pipeline(
+    destination="postgres",
+    dataset_name="my_dataset"
+)
+# JSONL is the default format
+```
+
+```python Parquet
+pipeline = dlt.pipeline(
+    destination="postgres",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+```python CSV
+pipeline = dlt.pipeline(
+    destination="postgres",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="csv")
+```
+</CodeGroup>
+
+### CSV Format Configuration
+
+Customize CSV loading options:
+
+```python
+import dlt
+from dlt.destinations import postgres
+from dlt.common.destination.configuration import CsvFormatConfiguration
+
+csv_config = CsvFormatConfiguration(
+    delimiter="|",
+    include_header=True
+)
+
+pipeline = dlt.pipeline(
+    destination=postgres(csv_format=csv_config),
+    dataset_name="my_dataset"
+)
+```
+
+## Write Dispositions
+
+PostgreSQL supports all write dispositions:
+
+<CodeGroup>
+```python Append
+@dlt.resource(write_disposition="append")
+def append_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Replace
+@dlt.resource(write_disposition="replace")
+def replace_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Merge
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id"
+)
+def merge_data():
+    yield {"id": 1, "value": "updated"}
+```
+</CodeGroup>
+
+## Data Types
+
+PostgreSQL data type mapping:
+
+| dlt Type | PostgreSQL Type |
+|----------|----------------|
+| text | VARCHAR |
+| double | DOUBLE PRECISION |
+| bool | BOOLEAN |
+| timestamp | TIMESTAMP WITH TIME ZONE |
+| date | DATE |
+| time | TIME WITHOUT TIME ZONE |
+| bigint | BIGINT |
+| binary | BYTEA |
+| decimal | NUMERIC |
+| json | JSONB |
+
+### JSONB Support
+
+PostgreSQL's JSONB type allows efficient storage and querying of JSON data:
+
+```python
+import dlt
+
+@dlt.resource
+def json_data():
+    yield {
+        "id": 1,
+        "metadata": {"nested": "value", "tags": ["a", "b"]}
+    }
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+pipeline.run(json_data())
+```
+
+Query JSONB data:
+
+```sql
+SELECT metadata->>'nested' as nested_value
+FROM json_data
+WHERE metadata @> '{"tags": ["a"]}';
+```
+
+### Timestamp Precision
+
+PostgreSQL supports timestamps with precision up to 6:
+
+```python
+import dlt
+
+@dlt.resource
+def precise_timestamps():
+    yield {
+        "timestamp_col": "2024-01-01T12:00:00.123456Z"
+    }
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+pipeline.run(precise_timestamps())
+```
+
+## Indexes and Constraints
+
+By default, dlt creates indexes on primary keys and unique columns:
+
+```python
+import dlt
+
+@dlt.resource(primary_key="id")
+def indexed_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+pipeline.run(indexed_data())
+```
+
+Disable index creation:
+
+```python
+import dlt
+from dlt.destinations import postgres
+
+pipeline = dlt.pipeline(
+    destination=postgres(create_indexes=False),
+    dataset_name="my_dataset"
+)
+```
+
+## Advanced Features
+
+### Geometry Support
+
+PostgreSQL with PostGIS extension supports geometry data:
+
+```python
+import dlt
+from dlt.destinations.adapters import postgres_adapter
+
+@dlt.resource
+def locations():
+    yield {
+        "id": 1,
+        "location": "POINT(-122.4194 37.7749)"
+    }
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+pipeline.run(
+    postgres_adapter(
+        locations(),
+        columns={"location": {"geometry": "POINT", "srid": 4326}}
+    )
+)
+```
+
+### Transaction Support
+
+PostgreSQL supports DDL transactions, so schema changes are atomic:
+
+```python
+import dlt
+
+@dlt.resource
+def my_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+# All schema changes happen in a transaction
+pipeline.run(my_data())
+```
+
+### Client Encoding
+
+Set the client encoding:
+
+```toml
+[destination.postgres.credentials]
+host = "localhost"
+database = "my_database"
+username = "my_user"
+password = "my_password"
+client_encoding = "utf-8"
+```
+
+## Case Sensitivity
+
+PostgreSQL is case-sensitive when identifiers are quoted. The default `snake_case` naming convention in dlt creates lowercase identifiers:
+
+```toml
+# No additional configuration needed for default behavior
+```
+
+## Performance Optimization
+
+### Batch Size
+
+For large datasets, adjust the batch size:
+
+```python
+import dlt
+
+@dlt.resource
+def large_dataset():
+    for i in range(1000000):
+        yield {"id": i, "value": f"data_{i}"}
+
+pipeline = dlt.pipeline(destination="postgres", dataset_name="my_dataset")
+pipeline.run(large_dataset())
+```
+
+### Connection Pooling
+
+PostgreSQL uses connection pooling by default. Adjust timeout for slow connections:
+
+```toml
+[destination.postgres.credentials]
+host = "localhost"
+database = "my_database"
+username = "my_user"
+password = "my_password"
+connect_timeout = 30
+```
+
+### Staging Support
+
+For large datasets, use staging:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="postgres",
+    staging="filesystem",
+    dataset_name="my_dataset"
+)
+```
+
+## Cloud PostgreSQL
+
+### AWS RDS
+
+Connect to AWS RDS PostgreSQL:
+
+```toml
+[destination.postgres.credentials]
+host = "mydb.abc123.us-west-2.rds.amazonaws.com"
+port = 5432
+database = "mydb"
+username = "admin"
+password = "your-password"
+```
+
+### Google Cloud SQL
+
+Connect to Cloud SQL PostgreSQL:
+
+```toml
+[destination.postgres.credentials]
+host = "/cloudsql/project:region:instance"
+database = "mydb"
+username = "postgres"
+password = "your-password"
+```
+
+### Azure Database for PostgreSQL
+
+Connect to Azure PostgreSQL:
+
+```toml
+[destination.postgres.credentials]
+host = "myserver.postgres.database.azure.com"
+port = 5432
+database = "mydb"
+username = "admin@myserver"
+password = "your-password"
+```
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL Docs" icon="database" href="https://www.postgresql.org/docs/">
+    Official PostgreSQL documentation
+  </Card>
+  <Card title="PostGIS Extension" icon="map" href="https://postgis.net/">
+    Spatial database extender for PostgreSQL
+  </Card>
+</CardGroup>

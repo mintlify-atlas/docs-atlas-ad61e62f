@@ -1,0 +1,290 @@
+---
+title: Load from REST API
+description: Extract data from any REST API using dlt's declarative REST API source
+---
+
+Load data from any REST API using dlt's declarative configuration. The REST API source handles pagination, authentication, and nested resources automatically.
+
+## Quick Start
+
+Here's a complete example loading GitHub issues and comments:
+
+```python
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {
+        "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+        "auth": {
+            "type": "bearer",
+            "token": dlt.secrets["github_token"],
+        },
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "params": {
+                    "state": "open",
+                    "per_page": 100,
+                },
+            },
+        },
+        {
+            "name": "comments",
+            "endpoint": {
+                "path": "issues/{resources.issues.number}/comments",
+            },
+            "include_from_parent": ["number"],
+        },
+    ],
+})
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_api",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+
+load_info = pipeline.run(source)
+print(load_info)
+```
+
+## Configuration
+
+### Using RESTAPIConfig
+
+For better type hints and IDE support, use the `RESTAPIConfig` type:
+
+```python
+from dlt.sources.rest_api import RESTAPIConfig, rest_api_resources
+
+@dlt.source
+def github_source(access_token=dlt.secrets.value):
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+            "auth": {
+                "type": "bearer",
+                "token": access_token,
+            } if access_token else None,
+        },
+        "resource_defaults": {
+            "primary_key": "id",
+            "write_disposition": "merge",
+            "endpoint": {
+                "params": {
+                    "per_page": 100,
+                },
+            },
+        },
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "issues",
+                    "params": {
+                        "sort": "updated",
+                        "direction": "desc",
+                        "state": "open",
+                    },
+                },
+            },
+        ],
+    }
+    
+    yield from rest_api_resources(config)
+```
+
+## Authentication
+
+<CodeGroup>
+
+```python Bearer Token
+config = {
+    "client": {
+        "base_url": "https://api.example.com/",
+        "auth": {
+            "type": "bearer",
+            "token": dlt.secrets["api_token"],
+        },
+    },
+}
+```
+
+```python API Key
+config = {
+    "client": {
+        "base_url": "https://api.example.com/",
+        "auth": {
+            "type": "api_key",
+            "api_key": dlt.secrets["api_key"],
+            "location": "header",  # or "query"
+            "name": "X-API-Key",
+        },
+    },
+}
+```
+
+```python No Auth
+config = {
+    "client": {
+        "base_url": "https://api.example.com/",
+    },
+}
+```
+
+</CodeGroup>
+
+## Pagination
+
+The REST API source automatically detects and handles pagination:
+
+```python
+# Automatic pagination detection
+source = rest_api_source({
+    "client": {
+        "base_url": "https://pokeapi.co/api/v2/",
+        # Paginator is automatically inferred
+    },
+    "resources": ["pokemon", "berry"],
+})
+```
+
+Or configure it explicitly:
+
+```python
+config = {
+    "client": {
+        "base_url": "https://api.example.com/",
+        "paginator": {
+            "type": "json_link",
+            "next_url_path": "paging.next",
+        },
+    },
+}
+```
+
+## Resource Relationships
+
+Load nested resources by referencing parent resource fields:
+
+```python
+config = {
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": "issues",
+        },
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                # Use {resources.issues.number} to reference parent
+                "path": "issues/{resources.issues.number}/comments",
+            },
+            # Include parent fields in child table
+            "include_from_parent": ["id", "number"],
+        },
+    ],
+}
+```
+
+## Incremental Loading
+
+Combine REST API source with incremental loading:
+
+```python
+from dlt.common.pendulum import pendulum
+
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "params": {
+                    "since": "{incremental.start_value}",
+                },
+                "incremental": {
+                    "cursor_path": "updated_at",
+                    "initial_value": pendulum.today().subtract(days=30).to_iso8601_string(),
+                },
+            },
+        },
+    ],
+}
+```
+
+## Testing Connection
+
+Verify your API configuration before running the pipeline:
+
+```python
+from dlt.sources.rest_api import check_connection
+
+source = rest_api_source(config)
+
+can_connect, error_msg = check_connection(
+    source,
+    "issues",  # Test this endpoint
+)
+
+if not can_connect:
+    print(f"Connection failed: {error_msg}")
+else:
+    print("Connection successful!")
+```
+
+## Complete Example: Pokemon API
+
+```python
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+def load_pokemon():
+    pipeline = dlt.pipeline(
+        pipeline_name="pokemon_api",
+        destination="duckdb",
+        dataset_name="pokemon_data",
+    )
+    
+    pokemon_source = rest_api_source({
+        "client": {
+            "base_url": "https://pokeapi.co/api/v2/",
+        },
+        "resource_defaults": {
+            "endpoint": {
+                "params": {
+                    "limit": 1000,
+                },
+            },
+        },
+        "resources": [
+            "pokemon",
+            "berry",
+            "location",
+        ],
+    })
+    
+    load_info = pipeline.run(pokemon_source)
+    print(load_info)
+
+if __name__ == "__main__":
+    load_pokemon()
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Incremental Loading" icon="arrow-progress" href="/guides/incremental-loading">
+    Add incremental loading to track changes
+  </Card>
+  <Card title="Schema Evolution" icon="sitemap" href="/guides/schema-evolution">
+    Handle schema changes automatically
+  </Card>
+</CardGroup>

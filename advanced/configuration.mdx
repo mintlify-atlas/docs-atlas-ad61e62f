@@ -1,0 +1,450 @@
+---
+title: Configuration Management
+description: Manage dlt configuration with TOML files, environment variables, and secret providers
+keywords: [configuration, secrets, toml, environment variables, credentials]
+---
+
+# Configuration Management
+
+Manage dlt configuration using TOML files, environment variables, and secret providers. dlt provides a flexible, hierarchical configuration system.
+
+## Configuration Sources
+
+dlt resolves configuration from multiple sources in priority order:
+
+1. **Environment variables** (highest priority)
+2. **secrets.toml** (secrets only)
+3. **config.toml** (non-secret values)
+4. **Code defaults** (lowest priority)
+
+<Note>
+Secret values (credentials, API keys) should be stored in `secrets.toml` or environment variables, never in `config.toml`.
+</Note>
+
+## TOML Configuration Files
+
+### Project Structure
+
+```
+my_pipeline/
+├── .dlt/
+│   ├── config.toml      # Non-secret configuration
+│   └── secrets.toml     # Secret values (gitignored)
+├── my_pipeline.py
+└── requirements.txt
+```
+
+### config.toml
+
+Store non-sensitive configuration:
+
+```toml
+# Runtime configuration
+[runtime]
+log_level = "INFO"
+request_timeout = 60
+request_max_attempts = 5
+
+# Pipeline defaults
+pipeline_name = "my_pipeline"
+
+# Destination configuration
+[destination.postgres]
+dataset_name = "analytics"
+
+# Source configuration
+[sources.my_api]
+base_url = "https://api.example.com"
+page_size = 100
+start_date = "2024-01-01"
+
+# Performance tuning
+[extract]
+workers = 5
+max_parallel_items = 20
+
+[extract.data_writer]
+buffer_max_items = 10000
+file_max_items = 100000
+
+[normalize]
+workers = 4
+
+[normalize.data_writer]
+file_max_items = 100000
+file_max_bytes = 10485760  # 10MB
+
+[load]
+workers = 10
+delete_completed_jobs = true
+```
+
+### secrets.toml
+
+Store sensitive credentials (never commit this file):
+
+```toml
+# API credentials
+[sources.my_api]
+api_key = "sk_live_abc123..."
+api_secret = "secret_xyz789..."
+
+# Database credentials  
+[destination.postgres.credentials]
+database = "analytics_db"
+username = "data_loader"
+password = "secure_password_here"
+host = "db.example.com"
+port = 5432
+
+# BigQuery credentials
+[destination.bigquery.credentials]
+project_id = "my-gcp-project"
+private_key = "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----"
+client_email = "service-account@my-project.iam.gserviceaccount.com"
+
+# Snowflake credentials
+[destination.snowflake.credentials]
+account = "my_account.us-east-1"
+user = "LOADER_USER"
+password = "snowflake_password"
+warehouse = "LOADING_WH"
+database = "ANALYTICS"
+role = "LOADER_ROLE"
+```
+
+<Warning>
+**Always add secrets.toml to .gitignore:**
+```
+# .gitignore
+.dlt/secrets.toml
+.dlt/*.secrets.toml
+```
+</Warning>
+
+## Environment Variables
+
+Override any configuration value with environment variables:
+
+### Naming Convention
+
+Environment variables use double underscores (`__`) as separators:
+
+```bash
+# Format: SECTION__SUBSECTION__KEY
+export SOURCES__MY_API__API_KEY="abc123"
+export DESTINATION__POSTGRES__CREDENTIALS__PASSWORD="secret"
+export RUNTIME__LOG_LEVEL="DEBUG"
+export EXTRACT__WORKERS="10"
+```
+
+### Examples
+
+<CodeGroup>
+
+```bash Source configuration
+# API credentials
+export SOURCES__MY_API__API_KEY="sk_live_abc123"
+export SOURCES__MY_API__BASE_URL="https://api.example.com"
+
+# REST API configuration
+export SOURCES__REST_API__ENDPOINT="https://api.example.com/v1"
+export SOURCES__REST_API__PAGE_SIZE="100"
+```
+
+```bash Destination configuration
+# PostgreSQL
+export DESTINATION__POSTGRES__CREDENTIALS__HOST="localhost"
+export DESTINATION__POSTGRES__CREDENTIALS__DATABASE="analytics"
+export DESTINATION__POSTGRES__CREDENTIALS__USERNAME="loader"
+export DESTINATION__POSTGRES__CREDENTIALS__PASSWORD="secret123"
+
+# BigQuery
+export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="my-project"
+export DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL="sa@my-project.iam.gserviceaccount.com"
+```
+
+```bash Performance tuning
+# Extract configuration
+export EXTRACT__WORKERS="15"
+export EXTRACT__MAX_PARALLEL_ITEMS="50"
+
+# Normalize configuration  
+export NORMALIZE__WORKERS="8"
+
+# Load configuration
+export LOAD__WORKERS="20"
+```
+
+```bash Runtime settings
+export RUNTIME__LOG_LEVEL="DEBUG"
+export RUNTIME__REQUEST_TIMEOUT="120"
+export RUNTIME__REQUEST_MAX_ATTEMPTS="10"
+export PROGRESS="log"
+```
+
+</CodeGroup>
+
+## Using Configuration in Code
+
+### Access Configuration Values
+
+```python
+import dlt
+from dlt.common.configuration import resolve
+
+# Configuration is automatically resolved from all sources
+pipeline = dlt.pipeline(
+    pipeline_name=dlt.config['pipeline_name'],  # From config.toml
+    destination='postgres',  # Credentials from secrets.toml
+    dataset_name=dlt.config.get('dataset_name', 'default_dataset')
+)
+```
+
+### Define Custom Configuration
+
+Create typed configuration classes:
+
+```python
+from dlt.common.configuration.specs import BaseConfiguration, configspec
+from dlt.common.typing import TSecretStrValue
+
+@configspec
+class MyApiConfig(BaseConfiguration):
+    api_key: TSecretStrValue  # Secret value
+    base_url: str = "https://api.example.com"  # Default value
+    timeout: int = 30
+    max_retries: int = 3
+
+# Resolve configuration
+config = resolve.resolve_configuration(MyApiConfig())
+print(f"Using API at {config.base_url}")
+```
+
+### Source-Specific Configuration
+
+Configure sources with `@dlt.source`:
+
+```python
+import dlt
+from dlt.sources.config import configspec
+
+@dlt.source
+def my_api_source(
+    api_key: str = dlt.secrets.value,
+    base_url: str = dlt.config.value,
+    page_size: int = 100
+):
+    """Source with configuration"""
+    
+    @dlt.resource
+    def users():
+        # Use configuration values
+        url = f"{base_url}/users?page_size={page_size}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        # ... fetch data
+        yield data
+    
+    return users
+
+# Configuration is automatically injected
+pipeline.run(my_api_source())
+```
+
+## Configuration Hierarchy
+
+### Section-Based Configuration
+
+Organize configuration by pipeline name and source:
+
+```toml
+# Global source configuration
+[sources.my_api]
+base_url = "https://api.example.com"
+
+# Pipeline-specific override
+[sources.my_api.production_pipeline]
+base_url = "https://production-api.example.com"
+
+# Resource-specific configuration
+[sources.my_api.resources.users]
+page_size = 500
+
+[sources.my_api.resources.orders]  
+page_size = 1000
+```
+
+### Configuration Precedence
+
+For a pipeline named `production_pipeline`, configuration is resolved in this order:
+
+1. Environment: `SOURCES__MY_API__PRODUCTION_PIPELINE__BASE_URL`
+2. Secrets: `[sources.my_api.production_pipeline]`
+3. Secrets: `[sources.my_api]`
+4. Config: `[sources.my_api.production_pipeline]`
+5. Config: `[sources.my_api]`
+6. Code defaults
+
+## Secret Providers
+
+### Google Cloud Secret Manager
+
+```python
+from dlt.common.configuration.providers import GoogleSecretsProvider
+
+# Use GCP Secret Manager
+provider = GoogleSecretsProvider(
+    project_id="my-gcp-project",
+    credentials="path/to/service-account.json"
+)
+
+# Access secrets
+api_key = provider.get_value(
+    "api_key",
+    hint=str,
+    pipeline_name="my_pipeline",
+    "sources",
+    "my_api"
+)
+```
+
+### AWS Secrets Manager
+
+```python
+import boto3
+import json
+
+# Fetch from AWS Secrets Manager
+secrets_client = boto3.client('secretsmanager')
+response = secrets_client.get_secret_value(SecretId='my-pipeline-secrets')
+secrets = json.loads(response['SecretString'])
+
+# Set as environment variables
+import os
+os.environ['SOURCES__MY_API__API_KEY'] = secrets['api_key']
+```
+
+### Airflow Variables
+
+When running in Airflow, use the `dlt_secrets_toml` variable:
+
+```python
+# Airflow automatically loads from Variable 'dlt_secrets_toml'
+# No code changes needed!
+pipeline = dlt.pipeline(
+    pipeline_name='airflow_pipeline',
+    destination='bigquery'
+)
+```
+
+## Configuration Best Practices
+
+<Steps>
+
+<Step title="Separate secrets from configuration">
+Never store secrets in `config.toml`. Use `secrets.toml` or environment variables.
+
+```toml
+# ❌ Wrong - in config.toml
+[sources.api]
+api_key = "secret123"  # DON'T DO THIS
+
+# ✅ Correct - in secrets.toml
+[sources.api]
+api_key = "secret123"  # Safe
+```
+</Step>
+
+<Step title="Use environment variables in CI/CD">
+Set secrets as environment variables in your deployment environment:
+
+```yaml
+# GitHub Actions
+env:
+  DESTINATION__BIGQUERY__CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+  SOURCES__API__API_KEY: ${{ secrets.API_KEY }}
+```
+</Step>
+
+<Step title="Use defaults wisely">
+Provide sensible defaults in code, override as needed:
+
+```python
+@dlt.source
+def my_source(
+    base_url: str = "https://api.example.com",  # Default
+    timeout: int = 30,  # Default
+    api_key: str = dlt.secrets.value  # Must be provided
+):
+    pass
+```
+</Step>
+
+<Step title="Document required configuration">
+Create a `config.toml.example` file:
+
+```toml
+# config.toml.example
+[sources.my_api]
+base_url = "https://api.example.com"
+page_size = 100
+
+[destination.postgres]
+dataset_name = "analytics"
+```
+
+And `secrets.toml.example`:
+
+```toml
+# secrets.toml.example
+[sources.my_api]
+api_key = "your_api_key_here"
+
+[destination.postgres.credentials]
+password = "your_password_here"
+```
+</Step>
+
+</Steps>
+
+<Tip>
+**Configuration tips:**
+- Use environment variables for secrets in production
+- Keep `config.toml` in version control
+- Never commit `secrets.toml`
+- Use typed configuration classes for validation
+- Provide sensible defaults
+- Document all required configuration
+</Tip>
+
+<Warning>
+**Security warnings:**
+- Never log secret values
+- Don't print configuration objects (may contain secrets)
+- Always use `.gitignore` for secrets.toml
+- Rotate credentials regularly
+- Use secret managers in production
+</Warning>
+
+## Debugging Configuration
+
+Find out where configuration values are loaded from:
+
+```python
+import dlt
+from dlt.common.configuration import resolve
+import logging
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Configuration resolution will log source of each value
+config = resolve.resolve_configuration(MyApiConfig())
+```
+
+This will show output like:
+```
+DEBUG:dlt.config:Resolved 'api_key' from Environment Variables
+DEBUG:dlt.config:Resolved 'base_url' from config.toml [sources.my_api]
+DEBUG:dlt.config:Using default for 'timeout'
+```

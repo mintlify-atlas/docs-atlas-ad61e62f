@@ -1,0 +1,434 @@
+---
+title: Snowflake
+description: Load data into Snowflake with dlt
+---
+
+# Snowflake
+
+Snowflake is a cloud-native data platform that provides data warehousing, data lake, data engineering, data science, and data application development capabilities.
+
+## Install dlt with Snowflake
+
+To use Snowflake as a destination, install dlt with the Snowflake extra:
+
+```bash
+pip install "dlt[snowflake]"
+```
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```python
+import dlt
+
+# Define your data source
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Create pipeline
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="snowflake",
+    dataset_name="my_dataset"
+)
+
+# Run the pipeline
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+### Basic Configuration
+
+<ParamField path="database" type="string" required>
+  The Snowflake database name
+</ParamField>
+
+<ParamField path="warehouse" type="string">
+  The Snowflake warehouse to use for queries
+</ParamField>
+
+<ParamField path="role" type="string">
+  The Snowflake role to use
+</ParamField>
+
+<ParamField path="stage_name" type="string">
+  Use an existing named stage instead of the default table stage
+</ParamField>
+
+<ParamField path="keep_staged_files" type="bool" default="true">
+  Whether to keep or delete staged files after COPY INTO succeeds
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="create_indexes" type="bool" default="false">
+  Whether UNIQUE or PRIMARY KEY constraints should be created
+</ParamField>
+
+<ParamField path="use_vectorized_scanner" type="bool" default="false">
+  Whether to use the vectorized scanner in COPY INTO
+</ParamField>
+
+<ParamField path="enable_atomic_swap" type="bool" default="false">
+  When enabled with `staging-optimized` replace strategy, tables are atomically swapped using ALTER TABLE ... SWAP WITH
+</ParamField>
+
+<ParamField path="use_decfloat" type="bool" default="false">
+  Whether to use DECFLOAT type for unbound decimals instead of DECIMAL
+</ParamField>
+
+<ParamField path="query_tag" type="string">
+  A tag with placeholders to tag sessions executing jobs
+</ParamField>
+
+## Authentication
+
+### Username and Password
+
+Create a `.dlt/secrets.toml` file with your credentials:
+
+```toml
+[destination.snowflake.credentials]
+host = "your-account.snowflakecomputing.com"
+username = "your-username"
+password = "your-password"
+database = "your-database"
+warehouse = "your-warehouse"
+role = "your-role"
+```
+
+<Steps>
+  <Step title="Get Your Account Identifier">
+    Your Snowflake account identifier is typically in the format: `organization-account_name`
+    
+    Example: `abc12345.us-east-1`
+  </Step>
+
+  <Step title="Create a Database">
+    ```sql
+    CREATE DATABASE my_dlt_database;
+    ```
+  </Step>
+
+  <Step title="Create a Warehouse">
+    ```sql
+    CREATE WAREHOUSE my_dlt_warehouse
+    WITH WAREHOUSE_SIZE = 'XSMALL'
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE;
+    ```
+  </Step>
+
+  <Step title="Create a User and Grant Permissions">
+    ```sql
+    CREATE USER dlt_user PASSWORD = 'your-secure-password';
+    
+    GRANT USAGE ON DATABASE my_dlt_database TO ROLE PUBLIC;
+    GRANT USAGE ON WAREHOUSE my_dlt_warehouse TO ROLE PUBLIC;
+    GRANT CREATE SCHEMA ON DATABASE my_dlt_database TO ROLE PUBLIC;
+    ```
+  </Step>
+</Steps>
+
+### Private Key Authentication
+
+For enhanced security, use private key authentication:
+
+```toml
+[destination.snowflake.credentials]
+host = "your-account.snowflakecomputing.com"
+username = "your-username"
+database = "your-database"
+warehouse = "your-warehouse"
+role = "your-role"
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+private_key_passphrase = "your-passphrase"  # Optional
+```
+
+Or reference a private key file:
+
+```toml
+[destination.snowflake.credentials]
+host = "your-account.snowflakecomputing.com"
+username = "your-username"
+database = "your-database"
+private_key_path = "/path/to/private_key.pem"
+```
+
+### OAuth Authentication
+
+Snowflake supports OAuth authentication:
+
+```toml
+[destination.snowflake.credentials]
+host = "your-account.snowflakecomputing.com"
+username = "your-username"
+database = "your-database"
+authenticator = "oauth"
+token = "your-oauth-token"
+```
+
+## Data Loading
+
+dlt loads data to Snowflake using the COPY INTO command with staged files.
+
+### Supported File Formats
+
+<CodeGroup>
+```python JSONL (Default)
+pipeline = dlt.pipeline(
+    destination="snowflake",
+    dataset_name="my_dataset"
+)
+# JSONL is the default format
+```
+
+```python Parquet
+pipeline = dlt.pipeline(
+    destination="snowflake",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="parquet")
+```
+
+```python CSV
+pipeline = dlt.pipeline(
+    destination="snowflake",
+    dataset_name="my_dataset"
+)
+pipeline.run(my_data(), loader_file_format="csv")
+```
+</CodeGroup>
+
+### Staging
+
+Snowflake uses stages to load data. By default, dlt uses table stages, but you can configure external stages:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake(stage_name="my_named_stage"),
+    dataset_name="my_dataset"
+)
+```
+
+For external staging with S3:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="snowflake",
+    staging="filesystem",  # Use S3 for staging
+    dataset_name="my_dataset"
+)
+```
+
+Configure the staging bucket:
+
+```toml
+[destination.filesystem]
+bucket_url = "s3://my-bucket/staging"
+
+[destination.filesystem.credentials]
+aws_access_key_id = "your-access-key"
+aws_secret_access_key = "your-secret-key"
+```
+
+## Write Dispositions
+
+Snowflake supports all write dispositions:
+
+<CodeGroup>
+```python Append
+@dlt.resource(write_disposition="append")
+def append_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Replace
+@dlt.resource(write_disposition="replace")
+def replace_data():
+    yield {"id": 1, "value": "new"}
+```
+
+```python Merge
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id"
+)
+def merge_data():
+    yield {"id": 1, "value": "updated"}
+```
+</CodeGroup>
+
+### Atomic Table Swaps
+
+With `enable_atomic_swap=True` and `staging-optimized` replace strategy, Snowflake uses `ALTER TABLE ... SWAP WITH` for zero-downtime loading:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake(enable_atomic_swap=True),
+    dataset_name="my_dataset"
+)
+
+@dlt.resource(write_disposition="replace")
+def my_data():
+    yield {"id": 1, "value": "data"}
+
+pipeline.run(my_data())
+```
+
+## Advanced Features
+
+### CSV Format Configuration
+
+Customize CSV format options:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+from dlt.common.destination.configuration import CsvFormatConfiguration
+
+csv_config = CsvFormatConfiguration(
+    delimiter="|",
+    include_header=True
+)
+
+pipeline = dlt.pipeline(
+    destination=snowflake(csv_format=csv_config),
+    dataset_name="my_dataset"
+)
+```
+
+### Query Tags
+
+Tag your Snowflake queries for tracking:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake(
+        query_tag="dlt_pipeline={pipeline_name},dataset={dataset_name}"
+    ),
+    dataset_name="my_dataset"
+)
+```
+
+### DECFLOAT for Decimals
+
+Use DECFLOAT type for unbound decimals:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake(use_decfloat=True),
+    dataset_name="my_dataset"
+)
+```
+
+<Note>
+  DECFLOAT only works with text-based formats (JSONL, CSV), not Parquet.
+</Note>
+
+### Vectorized Scanner
+
+Enable the vectorized scanner for better performance:
+
+```python
+import dlt
+from dlt.destinations import snowflake
+
+pipeline = dlt.pipeline(
+    destination=snowflake(use_vectorized_scanner=True),
+    dataset_name="my_dataset"
+)
+```
+
+## Data Types
+
+Snowflake data type mapping:
+
+| dlt Type | Snowflake Type |
+|----------|----------------|
+| text | VARCHAR |
+| double | FLOAT |
+| bool | BOOLEAN |
+| timestamp | TIMESTAMP_TZ |
+| date | DATE |
+| time | TIME |
+| bigint | NUMBER(19,0) |
+| binary | BINARY |
+| decimal | NUMBER |
+| json | VARIANT |
+
+### Timestamp Precision
+
+Snowflake supports timestamps with precision up to 9:
+
+```python
+import dlt
+
+@dlt.resource
+def precise_timestamps():
+    yield {
+        "timestamp_col": "2024-01-01T12:00:00.123456789Z"
+    }
+
+pipeline = dlt.pipeline(destination="snowflake", dataset_name="my_dataset")
+pipeline.run(precise_timestamps())
+```
+
+## Case Sensitivity
+
+Snowflake is case-sensitive but uppercases unquoted identifiers by default. dlt uses the `snake_case` naming convention which creates uppercase identifiers:
+
+```toml
+[destination.snowflake]
+# No additional configuration needed for default behavior
+```
+
+For case-sensitive identifiers, use a different naming convention:
+
+```toml
+[sources]
+naming = "sql_ci_v1"  # Case-insensitive naming
+```
+
+## Connection String
+
+You can also use a connection string:
+
+```python
+import dlt
+
+pipeline = dlt.pipeline(
+    destination="snowflake://user:password@account/database?warehouse=wh&role=role",
+    dataset_name="my_dataset"
+)
+```
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Snowflake Docs" icon="snowflake" href="https://docs.snowflake.com/">
+    Official Snowflake documentation
+  </Card>
+  <Card title="Staging Guide" icon="box" href="/destinations/filesystem">
+    Learn about staging with filesystem destination
+  </Card>
+</CardGroup>

@@ -1,0 +1,258 @@
+---
+title: All Destinations
+description: Complete list of all available dlt destinations
+---
+
+# All Destinations
+
+This page provides a complete list of all destinations supported by dlt. Destinations are organized by category to help you find the right one for your use case.
+
+## Cloud Data Warehouses
+
+Fully managed, cloud-native data warehouses optimized for analytics.
+
+<CardGroup cols={2}>
+  <Card title="BigQuery" icon="google" href="/destinations/bigquery">
+    Google's serverless data warehouse with excellent scalability and BigQuery ML integration.
+  </Card>
+  
+  <Card title="Snowflake" icon="snowflake" href="/destinations/snowflake">
+    Cloud-native data platform with secure data sharing and zero-copy cloning.
+  </Card>
+  
+  <Card title="Redshift" icon="aws" href="/destinations/redshift">
+    Amazon's fast, fully managed cloud data warehouse optimized for large-scale queries.
+  </Card>
+  
+  <Card title="Databricks" icon="cloud" href="/destinations/databricks">
+    Lakehouse platform combining data lake and warehouse capabilities with Delta Lake.
+  </Card>
+</CardGroup>
+
+## Databases
+
+Traditional relational and analytical databases.
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database" href="/destinations/postgres">
+    Powerful open-source relational database with JSONB support and excellent reliability.
+  </Card>
+  
+  <Card title="DuckDB" icon="duck" href="/destinations/duckdb">
+    In-process analytical database perfect for local development and data analysis.
+  </Card>
+</CardGroup>
+
+### Additional SQL Databases
+
+- **ClickHouse**: Fast column-oriented database for real-time analytics
+- **Microsoft SQL Server**: Enterprise relational database from Microsoft
+- **Azure Synapse**: Cloud analytics service with SQL and Spark capabilities
+- **Dremio**: Data lakehouse platform with SQL query engine
+- **Athena**: Serverless query service for S3 data using SQL
+- **SQLAlchemy**: Generic destination supporting any SQLAlchemy-compatible database
+
+## File Systems
+
+Store data as files in local or cloud storage.
+
+<Card title="Filesystem" icon="folder" href="/destinations/filesystem">
+  Load data to local or cloud file systems (S3, GCS, Azure) with support for Delta Lake and Iceberg.
+</Card>
+
+### Supported Protocols
+
+- **Local**: `file:///path/to/directory`
+- **AWS S3**: `s3://bucket-name`
+- **Google Cloud Storage**: `gs://bucket-name`
+- **Azure Blob Storage**: `az://container-name`
+- **Hugging Face**: `hf://datasets/username/dataset`
+- **Memory**: `memory://m` (for testing)
+
+## Vector Databases
+
+Specialized databases for storing and querying vector embeddings.
+
+<CardGroup cols={2}>
+  <Card title="Weaviate" icon="brain">
+    Vector database for AI-powered applications with built-in vectorization.
+  </Card>
+  
+  <Card title="Qdrant" icon="circle-nodes">
+    High-performance vector similarity search engine with rich filtering.
+  </Card>
+  
+  <Card title="LanceDB" icon="database">
+    Embedded vector database built on Lance data format.
+  </Card>
+</CardGroup>
+
+## Lakehouse Platforms
+
+Modern data platforms combining data lake and warehouse capabilities.
+
+- **Databricks**: See [Databricks destination](/destinations/databricks)
+- **DuckLake**: DuckDB with data lake capabilities (MotherDuck)
+- **MotherDuck**: Serverless DuckDB in the cloud
+
+## Custom Destinations
+
+<Card title="Custom Destinations" icon="code" href="/destinations/custom-destinations">
+  Build your own destination adapter to load data anywhere.
+</Card>
+
+## Destination Comparison
+
+### By Use Case
+
+| Use Case | Recommended Destinations |
+|----------|-------------------------|
+| **Large-scale Analytics** | BigQuery, Snowflake, Databricks |
+| **Cost-Effective Warehouse** | Redshift, ClickHouse |
+| **Local Development** | DuckDB, PostgreSQL |
+| **Data Lake** | Filesystem (S3/GCS/Azure), Databricks |
+| **Real-time Analytics** | ClickHouse, DuckDB |
+| **Machine Learning** | Databricks, BigQuery ML |
+| **Vector Search** | Weaviate, Qdrant, LanceDB |
+
+### By Capability
+
+| Feature | Destinations |
+|---------|-------------|
+| **Nested Types** | BigQuery (limited), DuckDB, Filesystem |
+| **Merge Support** | All except Filesystem (regular tables) |
+| **Staging Support** | BigQuery, Snowflake, Redshift, Databricks |
+| **ACID Transactions** | PostgreSQL, Snowflake, Databricks (Delta) |
+| **Schema Evolution** | All destinations |
+| **Case Sensitive IDs** | BigQuery, Snowflake, PostgreSQL, DuckDB |
+
+## Installation
+
+Install dlt with specific destination dependencies:
+
+```bash
+# Cloud warehouses
+pip install "dlt[bigquery]"
+pip install "dlt[snowflake]"
+pip install "dlt[redshift]"
+pip install "dlt[databricks]"
+
+# Databases
+pip install "dlt[postgres]"
+pip install "dlt[duckdb]"
+
+# Filesystem
+pip install "dlt[filesystem]"
+
+# Multiple destinations
+pip install "dlt[bigquery,postgres,duckdb]"
+```
+
+## Quick Start Example
+
+Here's how to use any destination:
+
+```python
+import dlt
+
+@dlt.resource
+def my_data():
+    yield {"id": 1, "name": "Alice"}
+    yield {"id": 2, "name": "Bob"}
+
+# Choose your destination
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="bigquery",  # or snowflake, postgres, duckdb, etc.
+    dataset_name="my_dataset"
+)
+
+info = pipeline.run(my_data())
+print(info)
+```
+
+## Configuration
+
+All destinations can be configured via:
+
+1. **Code**: Pass configuration directly
+   ```python
+   from dlt.destinations import bigquery
+   
+   pipeline = dlt.pipeline(
+       destination=bigquery(location="EU"),
+       dataset_name="my_dataset"
+   )
+   ```
+
+2. **Config Files**: Use `.dlt/secrets.toml`
+   ```toml
+   [destination.bigquery]
+   location = "US"
+   
+   [destination.bigquery.credentials]
+   project_id = "my-project"
+   private_key = "..."
+   ```
+
+3. **Environment Variables**:
+   ```bash
+   export DESTINATION__BIGQUERY__LOCATION="US"
+   export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="my-project"
+   ```
+
+## Choosing a Destination
+
+Consider these factors when selecting a destination:
+
+<Steps>
+  <Step title="Data Volume">
+    - **Small to Medium**: PostgreSQL, DuckDB
+    - **Large**: BigQuery, Snowflake, Databricks
+  </Step>
+
+  <Step title="Query Patterns">
+    - **OLTP**: PostgreSQL
+    - **OLAP**: BigQuery, Snowflake, DuckDB, ClickHouse
+    - **Mixed**: Databricks
+  </Step>
+
+  <Step title="Budget">
+    - **Free/Low Cost**: DuckDB, PostgreSQL, Filesystem
+    - **Pay-as-you-go**: BigQuery, Snowflake
+    - **Reserved Capacity**: Redshift, Databricks
+  </Step>
+
+  <Step title="Infrastructure">
+    - **Serverless**: BigQuery, DuckDB, MotherDuck
+    - **Managed**: Snowflake, Redshift, Databricks
+    - **Self-hosted**: PostgreSQL, ClickHouse
+  </Step>
+
+  <Step title="Ecosystem">
+    - **AWS**: Redshift, Athena
+    - **GCP**: BigQuery
+    - **Azure**: Synapse, Azure SQL
+    - **Multi-cloud**: Snowflake, Databricks
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Destination Guides" icon="book" href="/destinations/bigquery">
+    Detailed guides for each destination
+  </Card>
+  
+  <Card title="Custom Destinations" icon="code" href="/destinations/custom-destinations">
+    Build your own destination adapter
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/destinations/overview">
+    Learn about destination configuration
+  </Card>
+  
+  <Card title="Performance Tips" icon="rocket" href="/destinations/overview">
+    Optimize your data loading
+  </Card>
+</CardGroup>

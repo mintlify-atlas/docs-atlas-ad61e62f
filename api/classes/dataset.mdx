@@ -1,0 +1,432 @@
+---
+title: Dataset
+description: Reference for the Dataset class in dlt
+---
+
+The `Dataset` class provides access to data loaded in a destination. It allows querying tables, creating relations, and working with loaded data using dataframes, Arrow tables, or SQL.
+
+## Creating a Dataset
+
+Datasets are created by specifying a destination and dataset name:
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="bigquery",
+    dataset_name="my_dataset"
+)
+```
+
+## Properties
+
+### dataset_name
+
+The name of the dataset.
+
+```python
+name = dataset.dataset_name
+```
+
+**Returns:** `str` - Dataset name
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:131
+
+### schema
+
+The dlt schema associated with the dataset.
+
+```python
+schema = dataset.schema
+```
+
+**Returns:** `Schema` - Schema object fetched from destination or local pipeline
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:71
+
+### tables
+
+List of table names in the dataset.
+
+```python
+table_names = dataset.tables
+```
+
+**Returns:** `list[str]` - List of completed table names
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:99
+
+### sql_client
+
+SQL client for executing queries against the destination.
+
+```python
+client = dataset.sql_client
+```
+
+**Returns:** `SqlClientBase[Any]` - SQL client instance
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:138
+
+### destination_client
+
+Destination client for the dataset.
+
+```python
+client = dataset.destination_client
+```
+
+**Returns:** `JobClientBase` - Destination client instance
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:155
+
+### destination_dialect
+
+SQLGlot dialect of the destination.
+
+```python
+dialect = dataset.destination_dialect
+```
+
+**Returns:** `TSqlGlotDialect` - SQL dialect identifier
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:123
+
+## Methods
+
+### table()
+
+Gets a Relation for a table from the dataset.
+
+```python
+users = dataset.table("users")
+df = users.df()
+```
+
+<ParamField path="table_name" type="str" required>
+  Name of the table to access.
+</ParamField>
+
+<ParamField path="load_ids" type="Collection[str]" default="None">
+  Optional collection of load IDs to filter the table data.
+</ParamField>
+
+**Returns:** `dlt.Relation` - Relation object for the table
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:216
+
+### query()
+
+Creates a Relation from an SQL query, SQLGlot expression, or Ibis expression.
+
+```python
+# SQL string
+result = dataset.query("SELECT * FROM users WHERE active = true")
+
+# SQLGlot expression
+import sqlglot.expressions as sge
+query = sge.select("*").from_("users").where("active = true")
+result = dataset.query(query)
+```
+
+<ParamField path="query" type="Union[str, sge.Select, ir.Expr]" required>
+  The query as a string, SQLGlot expression, or Ibis expression.
+</ParamField>
+
+<ParamField path="query_dialect" type="TSqlGlotDialect" default="None">
+  Source dialect of the query. If specified, transpiles to destination dialect.
+</ParamField>
+
+**Returns:** `dlt.Relation` - Relation for the query
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:180
+
+### loads_table()
+
+Gets the `_dlt_loads` table as a Relation.
+
+```python
+loads = dataset.loads_table()
+df = loads.df()
+```
+
+**Returns:** `dlt.Relation` - Relation for _dlt_loads table
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:237
+
+### load_ids()
+
+Retrieves the list of load IDs for the dataset.
+
+```python
+ids = dataset.load_ids()
+print(f"Found {len(ids)} loads")
+```
+
+**Returns:** `list[str]` - List of load IDs from _dlt_loads table
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:241
+
+### latest_load_id()
+
+Retrieves the most recent load ID.
+
+```python
+latest = dataset.latest_load_id()
+if latest:
+    print(f"Latest load: {latest}")
+```
+
+**Returns:** `Optional[str]` - The latest load ID or None
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:249
+
+### row_counts()
+
+Creates a Relation with row counts for tables in the dataset.
+
+```python
+# Count all data tables
+counts = dataset.row_counts()
+df = counts.df()
+
+# Count specific tables
+counts = dataset.row_counts(table_names=["users", "orders"])
+
+# Count for specific load_id
+counts = dataset.row_counts(load_id="1234567890")
+```
+
+<ParamField path="data_tables" type="bool" default="True">
+  Include data tables in counts.
+</ParamField>
+
+<ParamField path="dlt_tables" type="bool" default="False">
+  Include dlt internal tables in counts.
+</ParamField>
+
+<ParamField path="table_names" type="list[str]" default="None">
+  Specific table names to count. Overrides data_tables and dlt_tables.
+</ParamField>
+
+<ParamField path="load_id" type="str" default="None">
+  Only count rows for a specific load ID.
+</ParamField>
+
+**Returns:** `dlt.Relation` - Relation with row count query
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:257
+
+### ibis()
+
+Gets an Ibis backend for the dataset.
+
+```python
+backend = dataset.ibis()
+table = backend.table("users")
+result = table.filter(table.active == True).execute()
+```
+
+<ParamField path="read_only" type="bool" default="False">
+  Whether to open in read-only mode (currently only supported for DuckDB).
+</ParamField>
+
+**Returns:** `IbisBackend` - Ibis backend instance
+
+**Source:** ~/workspace/source/dlt/dataset/dataset.py:55
+
+## Context Manager
+
+The Dataset can be used as a context manager to maintain an open connection:
+
+```python
+with dataset as ds:
+    users = ds.table("users").df()
+    orders = ds.table("orders").df()
+    # Connection stays open for multiple queries
+```
+
+## Example Usage
+
+### Basic Dataset Access
+
+```python
+import dlt
+
+# Create dataset
+dataset = dlt.dataset(
+    destination="bigquery",
+    dataset_name="production"
+)
+
+print(f"Tables: {dataset.tables}")
+print(f"Schema: {dataset.schema.name}")
+
+# Access table as dataframe
+users_df = dataset.table("users").df()
+print(users_df.head())
+```
+
+### Querying Data
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="postgres",
+    dataset_name="analytics"
+)
+
+# SQL query
+result = dataset.query("""
+    SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as count
+    FROM users
+    WHERE active = true
+    GROUP BY DATE(created_at)
+    ORDER BY date DESC
+""")
+
+df = result.df()
+print(df)
+```
+
+### Using Dictionary Access
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="duckdb",
+    dataset_name="data"
+)
+
+# Access tables via dictionary notation
+users = dataset["users"]
+orders = dataset["orders"]
+
+# Or as attributes
+products = dataset.products
+
+# Convert to dataframe
+users_df = users.df()
+```
+
+### Working with Load IDs
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="snowflake",
+    dataset_name="warehouse"
+)
+
+# Get all load IDs
+load_ids = dataset.load_ids()
+print(f"Total loads: {len(load_ids)}")
+
+# Get latest load
+latest = dataset.latest_load_id()
+print(f"Latest load ID: {latest}")
+
+# Query data from specific load
+latest_users = dataset.table("users", load_ids=[latest])
+df = latest_users.df()
+```
+
+### Row Counts
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="bigquery",
+    dataset_name="analytics"
+)
+
+# Get row counts for all data tables
+counts = dataset.row_counts()
+df = counts.df()
+print(df)
+
+# Row counts for specific tables
+counts = dataset.row_counts(
+    table_names=["users", "orders", "products"]
+)
+
+# Row counts for latest load only
+latest_load = dataset.latest_load_id()
+counts = dataset.row_counts(load_id=latest_load)
+```
+
+### Using with Context Manager
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="postgres",
+    dataset_name="production"
+)
+
+# Keep connection open for multiple operations
+with dataset as ds:
+    # Multiple queries using same connection
+    users = ds.table("users").df()
+    active_users = ds.query(
+        "SELECT * FROM users WHERE active = true"
+    ).df()
+    counts = ds.row_counts().df()
+    
+    print(f"Total users: {len(users)}")
+    print(f"Active users: {len(active_users)}")
+```
+
+### Integration with Ibis
+
+```python
+import dlt
+
+dataset = dlt.dataset(
+    destination="duckdb",
+    dataset_name="analytics"
+)
+
+# Get Ibis backend
+backend = dataset.ibis()
+
+# Work with Ibis API
+users = backend.table("users")
+active_users = users.filter(users.active == True)
+result = active_users.select(["id", "name", "email"]).execute()
+
+print(result)
+```
+
+### Cross-Dialect Queries
+
+```python
+import dlt
+import sqlglot.expressions as sge
+
+dataset = dlt.dataset(
+    destination="bigquery",
+    dataset_name="data"
+)
+
+# Write query in PostgreSQL dialect
+postgres_query = """
+    SELECT 
+        id,
+        name,
+        created_at::date as signup_date
+    FROM users
+    WHERE created_at > CURRENT_DATE - INTERVAL '30 days'
+"""
+
+# Automatically transpile to BigQuery dialect
+result = dataset.query(postgres_query, query_dialect="postgres")
+df = result.df()
+```

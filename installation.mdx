@@ -1,0 +1,411 @@
+---
+title: Installation
+description: Install dlt and configure optional dependencies for your use case
+---
+
+## Quick Install
+
+Install dlt using your preferred package manager:
+
+<CodeGroup>
+
+```bash pip
+pip install dlt
+```
+
+```bash poetry
+poetry add dlt
+```
+
+```bash uv
+uv pip install dlt
+```
+
+```bash conda
+conda install -c conda-forge dlt
+```
+
+</CodeGroup>
+
+## Python Version Requirements
+
+dlt supports Python 3.9 through Python 3.14.
+
+<Note>
+  Python 3.14 support is experimental. Some optional extras may not yet be available for this version.
+</Note>
+
+**Supported Python versions:**
+- Python 3.9.2+
+- Python 3.10
+- Python 3.11
+- Python 3.12
+- Python 3.13
+- Python 3.14 (experimental)
+
+## Installing with Destinations
+
+To use dlt with specific destinations, install with the appropriate extras:
+
+<CodeGroup>
+
+```bash DuckDB
+pip install "dlt[duckdb]"
+```
+
+```bash PostgreSQL
+pip install "dlt[postgres]"
+```
+
+```bash BigQuery
+pip install "dlt[bigquery]"
+```
+
+```bash Snowflake
+pip install "dlt[snowflake]"
+```
+
+```bash Redshift
+pip install "dlt[redshift]"
+```
+
+```bash MotherDuck
+pip install "dlt[motherduck]"
+```
+
+</CodeGroup>
+
+### All Destination Extras
+
+Here's the complete list of destination extras:
+
+| Extra | Description | Key Dependencies |
+|-------|-------------|------------------|
+| `duckdb` | DuckDB database | `duckdb>=0.9` |
+| `ducklake` | DuckDB with Iceberg support | `duckdb>=1.2.0`, `pyarrow>=16.0.0` |
+| `postgres` | PostgreSQL database | `psycopg2-binary>=2.9.1` |
+| `bigquery` | Google BigQuery | `google-cloud-bigquery>=2.26.0`, `pyarrow>=16.0.0` |
+| `snowflake` | Snowflake data warehouse | `snowflake-connector-python>=3.12.0` |
+| `redshift` | Amazon Redshift | `psycopg2-binary>=2.9.1` |
+| `athena` | AWS Athena | `pyathena>=3.8.2`, `pyarrow>=16.0.0` |
+| `databricks` | Databricks | `databricks-sql-connector>=3.0.0` |
+| `mssql` | Microsoft SQL Server | `pyodbc>=4.0.39` |
+| `clickhouse` | ClickHouse | `clickhouse-driver>=0.2.7` |
+| `motherduck` | MotherDuck (cloud DuckDB) | `duckdb>=1.0.0` |
+| `qdrant` | Qdrant vector database | `qdrant-client>=1.11.3` |
+| `weaviate` | Weaviate vector database | `weaviate-client>=4.9.3` |
+| `lancedb` | LanceDB vector database | `lancedb>=0.10.0`, `pyarrow>=16.0.0` |
+| `filesystem` | File system (S3, GCS, Azure) | `s3fs>=2022.4.0`, `botocore>=1.28` |
+
+<Tip>
+  You can install multiple extras at once: `pip install "dlt[postgres,bigquery,filesystem]"`
+</Tip>
+
+## Format and Feature Extras
+
+Install additional features based on your data format needs:
+
+<CodeGroup>
+
+```bash Parquet
+pip install "dlt[parquet]"
+```
+
+```bash Google Cloud Platform
+pip install "dlt[gcp]"
+```
+
+```bash dlt Hub
+pip install "dlt[hub]"
+```
+
+```bash CLI
+pip install "dlt[cli]"
+```
+
+</CodeGroup>
+
+### Common Feature Extras
+
+| Extra | Description | Use Case |
+|-------|-------------|----------|
+| `parquet` | Parquet file format support | Efficient columnar storage and loading |
+| `gcp` | Google Cloud Platform services | BigQuery, GCS access |
+| `hub` | dlt Hub integration | Access to 5000+ verified sources |
+| `cli` | Enhanced CLI tools | Pipeline scaffolding and management |
+
+## Complete Installation Example
+
+For a typical production setup with PostgreSQL and Parquet support:
+
+<CodeGroup>
+
+```bash pip
+pip install "dlt[postgres,parquet]"
+```
+
+```bash poetry
+poetry add "dlt[postgres,parquet]"
+```
+
+```bash uv
+uv pip install "dlt[postgres,parquet]"
+```
+
+</CodeGroup>
+
+## Development Installation
+
+To install dlt from source for development:
+
+```bash
+git clone https://github.com/dlt-hub/dlt.git
+cd dlt
+uv pip install -e ".[duckdb,postgres,parquet]"
+```
+
+<Note>
+  The dlt repository uses `uv` for dependency management. Check the [Makefile](https://github.com/dlt-hub/dlt/blob/devel/Makefile) for common development commands.
+</Note>
+
+## Verifying Installation
+
+Verify that dlt is installed correctly:
+
+```python
+import dlt
+
+print(f"dlt version: {dlt.__version__}")
+
+# Test a simple pipeline
+pipeline = dlt.pipeline(
+    pipeline_name='test_pipeline',
+    destination='duckdb',
+    dataset_name='test_data'
+)
+
+print("Installation successful!")
+```
+
+Expected output:
+```
+dlt version: 1.22.2
+Installation successful!
+```
+
+## Core Dependencies
+
+dlt has minimal required dependencies that are always installed:
+
+```python
+# Key dependencies (version 1.22.2)
+requests>=2.26.0
+pendulum>=2.1.2
+simplejson>=3.17.5
+PyYAML>=5.4.1
+semver>=3.0.0
+click>=7.1
+fsspec>=2022.4.0
+sqlglot>=25.4.0
+orjson>=3.6.7  # Fast JSON processing
+tenacity>=8.0.2  # Retry logic
+```
+
+<Warning>
+  dlt follows semantic versioning. We recommend using the compatible release specifier: `dlt~=1.22` to allow only patch updates.
+</Warning>
+
+## Dependency Versioning
+
+When adding dlt as a dependency to your project:
+
+### Using Compatible Release Specifier
+
+```toml pyproject.toml
+[project]
+dependencies = [
+    "dlt~=1.22",  # Allows >=1.22.0, <1.23.0
+]
+```
+
+### Using Poetry
+
+```toml pyproject.toml
+[tool.poetry.dependencies]
+dlt = "^1.22"  # Allows >=1.22.0, <2.0.0
+```
+
+<Note>
+  - **Major version changes** may include breaking changes and removed deprecations
+  - **Minor version changes** add new features, sometimes with automatic migrations
+  - **Patch version changes** include bug fixes only
+</Note>
+
+## Platform Support
+
+dlt works on all major platforms:
+
+- **Linux** (all distributions)
+- **macOS** (macOS X)
+- **Windows** (Windows 10+)
+- **WebAssembly/Pyodide** (experimental)
+
+## Configuration After Installation
+
+After installing dlt, you'll typically need to configure credentials for your destinations.
+
+### Initialize a New Project
+
+Use the dlt CLI to scaffold a new project:
+
+```bash
+dlt init my_source postgres
+```
+
+This creates:
+- `my_source.py` - Your source/pipeline code
+- `.dlt/config.toml` - Configuration file
+- `.dlt/secrets.toml` - Credentials file (gitignored)
+- `requirements.txt` - Python dependencies
+
+### Manual Configuration
+
+Create configuration files manually:
+
+```toml .dlt/secrets.toml
+[destination.postgres.credentials]
+host = "localhost"
+port = 5432
+username = "your_username"
+password = "your_password"
+database = "your_database"
+```
+
+```toml .dlt/config.toml
+[runtime]
+log_level = "INFO"
+
+[pipeline]
+workers = 4
+```
+
+<Tip>
+  Never commit `.dlt/secrets.toml` to version control. Add it to your `.gitignore` file.
+</Tip>
+
+## Environment Variables
+
+Alternatively, configure dlt using environment variables:
+
+```bash
+export DESTINATION__POSTGRES__CREDENTIALS__HOST="localhost"
+export DESTINATION__POSTGRES__CREDENTIALS__PORT="5432"
+export DESTINATION__POSTGRES__CREDENTIALS__USERNAME="your_username"
+export DESTINATION__POSTGRES__CREDENTIALS__PASSWORD="your_password"
+export DESTINATION__POSTGRES__CREDENTIALS__DATABASE="your_database"
+```
+
+## Docker Installation
+
+Run dlt in a Docker container:
+
+```dockerfile Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "pipeline.py"]
+```
+
+```txt requirements.txt
+dlt[postgres,parquet]==1.22.2
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'dlt'">
+    Ensure you've activated the correct Python environment and that dlt is installed:
+    
+    ```bash
+    pip list | grep dlt
+    ```
+  </Accordion>
+  
+  <Accordion title="Version conflicts with other packages">
+    Try installing dlt in a fresh virtual environment:
+    
+    ```bash
+    python -m venv dlt-env
+    source dlt-env/bin/activate  # On Windows: dlt-env\Scripts\activate
+    pip install dlt[duckdb]
+    ```
+  </Accordion>
+  
+  <Accordion title="Platform-specific build errors">
+    Some dependencies require compilation. Install build tools:
+    
+    **Linux (Ubuntu/Debian):**
+    ```bash
+    sudo apt-get install build-essential python3-dev
+    ```
+    
+    **macOS:**
+    ```bash
+    xcode-select --install
+    ```
+    
+    **Windows:**
+    Install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+  </Accordion>
+  
+  <Accordion title="Missing extras for Python 3.14">
+    Python 3.14 support is experimental. Some dependencies may not have wheels available yet. Use Python 3.11 or 3.12 for production workloads.
+  </Accordion>
+</AccordionGroup>
+
+## Upgrading dlt
+
+Upgrade to the latest version:
+
+<CodeGroup>
+
+```bash pip
+pip install --upgrade dlt
+```
+
+```bash poetry
+poetry update dlt
+```
+
+```bash uv
+uv pip install --upgrade dlt
+```
+
+</CodeGroup>
+
+Check the [release notes](https://github.com/dlt-hub/dlt/releases) for migration guides and breaking changes.
+
+## Next Steps
+
+Now that dlt is installed:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Build your first pipeline in 5 minutes
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Learn about sources, resources, and pipelines
+  </Card>
+  <Card title="Configuration" icon="gear" href="https://dlthub.com/docs/general-usage/credentials">
+    Set up credentials and configuration
+  </Card>
+  <Card title="Destinations" icon="database" href="https://dlthub.com/docs/dlt-ecosystem/destinations">
+    Configure your destination
+  </Card>
+</CardGroup>

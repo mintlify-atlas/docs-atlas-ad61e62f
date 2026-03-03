@@ -1,0 +1,283 @@
+---
+title: "@dlt.resource"
+description: "Decorator that transforms a function or data into a dlt resource"
+---
+
+## Overview
+
+The `@dlt.resource` decorator transforms any generator (yielding) function into a dlt resource, or wraps data directly into a resource. A resource represents a location within a source that holds data with specific structure (schema) or coming from specific origin, such as a REST API endpoint, database table, or tab in Google Sheets.
+
+A dlt resource is a Python representation that combines both data and metadata (table schema) that describes the structure and instructs the loading of the data. A dlt resource is also an `Iterable` and can be used like any other iterable object (list, tuple, etc.).
+
+## Signature
+
+```python
+@dlt.resource(
+    name: str = None,
+    table_name: str = None,
+    max_table_nesting: int = None,
+    write_disposition: str | dict = None,
+    columns: dict | Type = None,
+    primary_key: str | List[str] = None,
+    merge_key: str | List[str] = None,
+    schema_contract: dict = None,
+    table_format: str = None,
+    file_format: str = None,
+    references: list = None,
+    nested_hints: dict = None,
+    selected: bool = True,
+    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
+    incremental: Incremental = None,
+    section: str = None,
+    standalone: bool = None,
+)
+```
+
+## Parameters
+
+<ParamField path="data" type="Callable | Iterable" required>
+  A function to be decorated or data compatible with dlt `run`. Can be a generator function, list, iterator, or any iterable.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+  A name of the resource that by default also becomes the name of the table to which the data is loaded. If not present, the name of the decorated function will be used.
+</ParamField>
+
+<ParamField path="table_name" type="str | Callable" default="None">
+  A table name, if different from `name`. This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+</ParamField>
+
+<ParamField path="max_table_nesting" type="int" default="None">
+  A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+</ParamField>
+
+<ParamField path="write_disposition" type="str | dict" default="'append'">
+  Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+  
+  Allowed shorthand string literals:
+  - `append`: Always add new data at the end of the table
+  - `replace`: Replace existing data with new data
+  - `skip`: Prevent data from loading
+  - `merge`: Deduplicate and merge data based on `primary_key` and `merge_key` hints
+  
+  For advanced usage, use a configuration dictionary. For example, to obtain an SCD2 table:
+  ```python
+  write_disposition={"disposition": "merge", "strategy": "scd2"}
+  ```
+</ParamField>
+
+<ParamField path="columns" type="dict | List | Type" default="None">
+  A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+  
+  When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
+</ParamField>
+
+<ParamField path="primary_key" type="str | List[str]" default="None">
+  A column name or a list of column names that comprise a primary key. Typically used with "merge" write disposition to deduplicate loaded data.
+</ParamField>
+
+<ParamField path="merge_key" type="str | List[str]" default="None">
+  A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges (e.g., to keep a single record for a given day).
+</ParamField>
+
+<ParamField path="schema_contract" type="dict" default="None">
+  Schema contract settings that will be applied to this resource.
+</ParamField>
+
+<ParamField path="table_format" type="str" default="None">
+  Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem. Other destinations ignore this hint.
+</ParamField>
+
+<ParamField path="file_format" type="str" default="None">
+  Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force a file format that is preferred by the destination used. This setting supersedes the `load_file_format` passed to pipeline `run` method.
+</ParamField>
+
+<ParamField path="references" type="list" default="None">
+  A list of references to other table's columns. Format:
+  ```python
+  [{
+      'referenced_table': 'other_table',
+      'columns': ['col1', 'col2'],
+      'referenced_columns': ['other_col1', 'other_col2']
+  }]
+  ```
+  Table and column names will be normalized according to the configured naming convention.
+</ParamField>
+
+<ParamField path="nested_hints" type="dict" default="None">
+  Hints for nested tables created by this resource.
+</ParamField>
+
+<ParamField path="selected" type="bool" default="True">
+  When `True`, dlt pipeline will extract and load this resource. If `False`, the resource will be ignored.
+</ParamField>
+
+<ParamField path="spec" type="Type[BaseConfiguration]" default="None">
+  A specification of configuration and secret values required by the resource.
+</ParamField>
+
+<ParamField path="parallelized" type="bool" default="False">
+  If `True`, the resource generator will be extracted in parallel with other resources. Transformers that return items are also parallelized.
+</ParamField>
+
+<ParamField path="incremental" type="Incremental" default="None">
+  An incremental configuration for the resource to enable incremental loading.
+</ParamField>
+
+<ParamField path="section" type="str" default="None">
+  Configuration section that comes right after 'sources' in default layout. If not present, the current python module name will be used.
+  
+  Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
+</ParamField>
+
+<ParamField path="standalone" type="bool" default="None">
+  **Deprecated.** Past functionality got merged into regular resource.
+</ParamField>
+
+## Returns
+
+<ResponseField name="resource" type="DltResource">
+  A `DltResource` instance which may be loaded, iterated or combined with other resources into a pipeline.
+</ResponseField>
+
+## Configuration Injection
+
+When used as a decorator, the resource may automatically bind function arguments to secret and config values:
+
+```python
+@dlt.resource
+def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value):
+    return requests.get(
+        f"{chess_url}/games/{username}",
+        headers={"Authorization": f"Bearer {api_secret}"}
+    )
+
+list(user_games("magnuscarlsen"))
+```
+
+In this example:
+- `username` is a required, explicit python argument
+- `chess_url` is required and will be taken from `config.toml` if not explicitly passed
+- `api_secret` is required and will be taken from `secrets.toml` if not explicitly passed
+
+**Note:** If the decorated function is an inner function, passing of credentials will be disabled.
+
+## Usage Examples
+
+### Basic Resource as Decorator
+
+```python
+import dlt
+
+@dlt.resource
+def users():
+    yield [{"id": 1, "name": "Alice"}]
+    yield [{"id": 2, "name": "Bob"}]
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(users())
+```
+
+### Resource from Data
+
+```python
+import dlt
+
+data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+users_resource = dlt.resource(data, name="users")
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(users_resource)
+```
+
+### Resource with Merge Write Disposition
+
+```python
+@dlt.resource(
+    write_disposition="merge",
+    primary_key="id"
+)
+def products():
+    yield [
+        {"id": 1, "name": "Widget", "price": 10.99},
+        {"id": 2, "name": "Gadget", "price": 24.99}
+    ]
+```
+
+### Resource with Incremental Loading
+
+```python
+import dlt
+from dlt.sources.helpers.incremental import incremental
+
+@dlt.resource(
+    primary_key="id",
+    write_disposition="append"
+)
+def events(created_at=dlt.sources.incremental("created_at")):
+    # Only fetch events after last created_at value
+    for event in fetch_events(since=created_at.last_value):
+        yield event
+```
+
+### Resource with Column Schema
+
+```python
+@dlt.resource(
+    columns={
+        "id": {"data_type": "bigint", "nullable": False},
+        "email": {"data_type": "text", "unique": True},
+        "created_at": {"data_type": "timestamp"}
+    },
+    primary_key="id"
+)
+def users():
+    yield [{"id": 1, "email": "alice@example.com", "created_at": "2024-01-01"}]
+```
+
+### Resource with Pydantic Validation
+
+```python
+from pydantic import BaseModel
+
+class User(BaseModel):
+    id: int
+    name: str
+    email: str
+
+@dlt.resource(columns=User)
+def validated_users():
+    # Data will be validated against User model
+    yield [{"id": 1, "name": "Alice", "email": "alice@example.com"}]
+```
+
+### Parallelized Resource
+
+```python
+@dlt.resource(parallelized=True)
+def large_dataset():
+    # This resource will be extracted in parallel with others
+    for i in range(10000):
+        yield {"id": i, "value": f"item_{i}"}
+```
+
+### Dynamic Table Names
+
+```python
+def table_name_func(item):
+    return f"users_{item['country']}"
+
+@dlt.resource(table_name=table_name_func)
+def users_by_country():
+    yield {"id": 1, "name": "Alice", "country": "US"}
+    yield {"id": 2, "name": "Bob", "country": "UK"}
+    # Creates tables: users_US, users_UK
+```
+
+## See Also
+
+- [Source decorator](/api/decorators/source)
+- [Transformer decorator](/api/decorators/transformer)
+- [Resources documentation](https://dlthub.com/docs/general-usage/resource)
+- [Credentials documentation](https://dlthub.com/docs/general-usage/credentials/)

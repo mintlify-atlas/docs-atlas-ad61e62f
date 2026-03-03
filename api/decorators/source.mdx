@@ -1,0 +1,172 @@
+---
+title: "@dlt.source"
+description: "Decorator that transforms a function into a dlt source for loading data"
+---
+
+## Overview
+
+The `@dlt.source` decorator transforms a function returning one or more dlt resources into a dlt source. A source is a logical grouping of resources that are often extracted and loaded together, associated with a schema that describes the structure of the loaded data.
+
+## Signature
+
+```python
+@dlt.source(
+    name: str = None,
+    section: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    schema_contract: TSchemaContract = None,
+    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
+)
+```
+
+## Parameters
+
+<ParamField path="func" type="Callable" required>
+  A function that returns a dlt resource or a list of resources, or a list of any data items that can be loaded by dlt.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+  A name of the source which is also the name of the associated schema. If not present, the function name will be used.
+</ParamField>
+
+<ParamField path="section" type="str" default="None">
+  Configuration section that comes right after `sources` in default layout. If not present, the current python module name will be used.
+  
+  Default layout is `sources.<section>.<name>.<key_name>`.
+</ParamField>
+
+<ParamField path="max_table_nesting" type="int" default="None">
+  A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+</ParamField>
+
+<ParamField path="root_key" type="bool" default="False">
+  Enables merging on all resources by propagating row key from root to all nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge.
+</ParamField>
+
+<ParamField path="schema" type="Schema" default="None">
+  An explicit `Schema` instance to be associated with the source. If not present, dlt creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
+</ParamField>
+
+<ParamField path="schema_contract" type="TSchemaContract" default="None">
+  Schema contract settings that will be applied to this source and all its resources.
+</ParamField>
+
+<ParamField path="spec" type="Type[BaseConfiguration]" default="None">
+  A specification of configuration and secret values required by the source.
+</ParamField>
+
+<ParamField path="parallelized" type="bool" default="False">
+  If `True`, resource generators will be extracted in parallel with other resources. Transformers that return items are also parallelized. Non-eligible resources are ignored.
+</ParamField>
+
+## Returns
+
+<ResponseField name="source" type="SourceFactory">
+  A wrapped source function that when called returns a `DltSource` instance which can be loaded using `dlt.pipeline().run()`.
+</ResponseField>
+
+## Configuration Injection
+
+The decorator automatically binds the source function arguments to secret and config values:
+
+```python
+@dlt.source
+def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
+    return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
+
+list(chess("magnuscarlsen"))
+```
+
+In this example:
+- `username` is a required, explicit python argument
+- `chess_url` is required and will be taken from `config.toml` if not explicitly passed
+- `api_secret` is required and will be taken from `secrets.toml` if not explicitly passed
+- `title` has a default value of "GM"
+
+## Usage Examples
+
+### Basic Source
+
+```python
+import dlt
+
+@dlt.source
+def github_source(api_key: str = dlt.secrets.value):
+    @dlt.resource
+    def issues():
+        # fetch issues from GitHub API
+        yield [{"id": 1, "title": "Bug fix"}]
+    
+    @dlt.resource
+    def pull_requests():
+        # fetch PRs from GitHub API
+        yield [{"id": 1, "title": "Feature"}]
+    
+    return issues, pull_requests
+
+# Use the source
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(github_source())
+```
+
+### Source with Custom Schema
+
+```python
+from dlt.common.schema import Schema
+
+custom_schema = Schema("my_schema")
+
+@dlt.source(schema=custom_schema)
+def my_source():
+    @dlt.resource
+    def data():
+        yield [{"id": 1, "name": "Alice"}]
+    
+    return data
+```
+
+### Source with Max Table Nesting
+
+```python
+@dlt.source(max_table_nesting=2)
+def nested_data_source():
+    @dlt.resource
+    def deeply_nested():
+        yield [{
+            "id": 1,
+            "level1": {
+                "level2": {
+                    "level3": "This will be JSON/struct"
+                }
+            }
+        }]
+    
+    return deeply_nested
+```
+
+### Parallelized Source
+
+```python
+@dlt.source(parallelized=True)
+def parallel_source():
+    @dlt.resource
+    def resource1():
+        yield range(1000)
+    
+    @dlt.resource
+    def resource2():
+        yield range(1000)
+    
+    # Both resources will be extracted in parallel
+    return resource1, resource2
+```
+
+## See Also
+
+- [Resource decorator](/api/decorators/resource)
+- [Transformer decorator](/api/decorators/transformer)
+- [Sources documentation](https://dlthub.com/docs/general-usage/source)
+- [Credentials documentation](https://dlthub.com/docs/general-usage/credentials/)

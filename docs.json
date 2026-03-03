@@ -1,122 +1,165 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "dlt",
+  "theme": "sequoia",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#6F6FF7",
+    "light": "#8B8BFF",
+    "dark": "#5555D9"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/dlt-hub/dlt"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/dlt-hub/dlt",
+      "slack": "https://dlthub.com/community"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation",
+              "core-concepts"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/pipeline",
+              "concepts/source",
+              "concepts/resource",
+              "concepts/destination",
+              "concepts/schema",
+              "concepts/state"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Building Pipelines",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/load-from-rest-api",
+              "guides/load-from-sql-database",
+              "guides/load-from-filesystem",
+              "guides/load-from-python-data",
+              "guides/incremental-loading",
+              "guides/schema-evolution",
+              "guides/data-contracts"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Sources",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "sources/overview",
+              "sources/rest-api",
+              "sources/sql-database",
+              "sources/filesystem",
+              "sources/custom-sources",
+              "sources/available-sources"
+            ]
+          },
+          {
+            "group": "Destinations",
+            "pages": [
+              "destinations/overview",
+              "destinations/bigquery",
+              "destinations/snowflake",
+              "destinations/redshift",
+              "destinations/postgres",
+              "destinations/duckdb",
+              "destinations/databricks",
+              "destinations/filesystem",
+              "destinations/all-destinations",
+              "destinations/custom-destinations"
+            ]
+          },
+          {
+            "group": "Advanced Usage",
+            "pages": [
+              "advanced/transformations",
+              "advanced/performance",
+              "advanced/deployment",
+              "advanced/testing",
+              "advanced/configuration"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core API",
             "pages": [
-              "api-reference/introduction"
+              "api/pipeline",
+              "api/run",
+              "api/attach"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Decorators",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/decorators/source",
+              "api/decorators/resource",
+              "api/decorators/transformer",
+              "api/decorators/destination"
+            ]
+          },
+          {
+            "group": "Classes",
+            "pages": [
+              "api/classes/pipeline",
+              "api/classes/source",
+              "api/classes/resource",
+              "api/classes/schema",
+              "api/classes/dataset"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "api/config",
+              "api/secrets"
+            ]
+          },
+          {
+            "group": "Sources Module",
+            "pages": [
+              "api/sources/incremental",
+              "api/sources/helpers"
+            ]
+          },
+          {
+            "group": "Destinations Module",
+            "pages": [
+              "api/destinations/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/init",
+              "cli/pipeline",
+              "cli/deploy"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }
